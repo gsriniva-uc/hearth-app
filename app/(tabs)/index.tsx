@@ -6,7 +6,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Audio } from "expo-av";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import { useAuth } from "@/app/_layout";
 import { API_BASE_URL } from "@/constants/config";
 
@@ -105,8 +105,14 @@ export default function TodayScreen() {
         Alert.alert("Error", "Could not get speech token. Please sign in again.");
         return;
       }
-      const base64Audio = await FileSystem.readAsStringAsync(uri, {
-        encoding: "base64",
+      const fileInfo = await FileSystem.getInfoAsync(uri);
+      const response  = await fetch(uri);
+      const blob      = await response.blob();
+      const base64Audio = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload  = () => resolve((reader.result as string).split(",")[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
       });
       const speechRes = await fetch(
         "https://speech.googleapis.com/v1/speech:recognize",

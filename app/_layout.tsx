@@ -17,6 +17,11 @@ export default function RootLayout() {
   const [user,    setUser]    = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const applyUser = (u: User) => {
+    globalUser = u;
+    setUser(u);
+  };
+
   const handleDeepLink = useCallback(async (url: string) => {
     if (!url.includes("://auth")) return;
     const userMatch  = url.match(/user=([^&]+)/);
@@ -27,32 +32,23 @@ export default function RootLayout() {
       const token    = decodeURIComponent(tokenMatch[1]);
       await AsyncStorage.setItem("hearth_user",  JSON.stringify(userData));
       await AsyncStorage.setItem("google_token", token);
-      globalUser = userData;
-      setUser(userData);
+      applyUser(userData);
     } catch (e) {
-      console.error("Deep link parse error:", e);
+      console.error("Deep link error:", e);
     }
   }, []);
 
   useEffect(() => {
-    // Load saved user
     AsyncStorage.getItem("hearth_user").then((raw) => {
       if (raw) {
         const saved = JSON.parse(raw) as User;
-        globalUser  = saved;
-        setUser(saved);
+        applyUser(saved);
       }
       setLoading(false);
     });
 
-    // Handle deep link when app is already open
     const sub = Linking.addEventListener("url", ({ url }) => handleDeepLink(url));
-
-    // Handle deep link that opened the app
-    Linking.getInitialURL().then((url) => {
-      if (url) handleDeepLink(url);
-    });
-
+    Linking.getInitialURL().then((url) => { if (url) handleDeepLink(url); });
     return () => sub.remove();
   }, [handleDeepLink]);
 

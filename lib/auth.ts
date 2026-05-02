@@ -6,35 +6,35 @@ import { User } from "@/lib/types";
 
 WebBrowser.maybeCompleteAuthSession();
 
-const discovery = AuthSession.useAutoDiscovery("https://accounts.google.com");
+// Discovery document — static, no hook needed
+const discovery = {
+  authorizationEndpoint: "https://accounts.google.com/o/oauth2/v2/auth",
+  tokenEndpoint:         "https://oauth2.googleapis.com/token",
+  userInfoEndpoint:      "https://www.googleapis.com/oauth2/v3/userinfo",
+};
 
 export async function signInWithGoogle(): Promise<User | null> {
-  const redirectUri = AuthSession.makeRedirectUri({
-    useProxy: true,
-  });
+  const redirectUri = AuthSession.makeRedirectUri({ useProxy: true });
 
   const request = new AuthSession.AuthRequest({
-    clientId: GOOGLE_CLIENT_ID,
+    clientId:    GOOGLE_CLIENT_ID,
     redirectUri,
     scopes: [
-      "openid",
-      "profile", 
-      "email",
+      "openid", "profile", "email",
       "https://www.googleapis.com/auth/gmail.readonly",
       "https://www.googleapis.com/auth/gmail.send",
       "https://www.googleapis.com/auth/calendar",
     ],
   });
 
-  const result = await request.promptAsync({
-    authorizationEndpoint: "https://accounts.google.com/o/oauth2/v2/auth",
-  }, { useProxy: true });
+  await request.makeAuthUrlAsync(discovery);
+  const result = await request.promptAsync(discovery, { useProxy: true });
 
   if (result.type !== "success") return null;
 
-  // Get user info
-  const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
+  // Exchange code for token
+  const tokenRes = await fetch(discovery.tokenEndpoint, {
+    method:  "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       code:          result.params.code,
@@ -46,7 +46,13 @@ export async function signInWithGoogle(): Promise<User | null> {
   });
   const tokenData = await tokenRes.json();
 
-  const userRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+  if (!tokenData.access_token) {
+    console.error("Token exchange failed:", tokenData);
+    return null;
+  }
+
+  // Get user info
+  const userRes  = await fetch(discovery.userInfoEndpoint, {
     headers: { Authorization: `Bearer ${tokenData.access_token}` },
   });
   const userInfo = await userRes.json();
@@ -58,12 +64,12 @@ export async function signInWithGoogle(): Promise<User | null> {
     picture: userInfo.picture,
   };
 
-  // Save locally
+  // Persist locally
   await AsyncStorage.setItem("hearth_user",    JSON.stringify(user));
   await AsyncStorage.setItem("google_token",   tokenData.access_token);
   await AsyncStorage.setItem("google_refresh", tokenData.refresh_token || "");
 
-  // Register with backend + send token so backend can scan Gmail
+  // Register with backend
   await fetch(`${API_BASE_URL}/auth/register`, {
     method:  "POST",
     headers: { "Content-Type": "application/json" },

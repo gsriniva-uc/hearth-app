@@ -24,8 +24,7 @@
     },
     "plugins": [
       "expo-router",
-      "expo-web-browser",
-      "@react-native-voice/voice"
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true

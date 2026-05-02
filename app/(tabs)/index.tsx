@@ -106,7 +106,7 @@ export default function TodayScreen() {
         return;
       }
       const base64Audio = await FileSystem.readAsStringAsync(uri, {
-        encoding: FileSystem.EncodingType.Base64,
+        encoding: "base64",
       });
       const speechRes = await fetch(
         "https://speech.googleapis.com/v1/speech:recognize",
@@ -139,9 +139,8 @@ export default function TodayScreen() {
       } else {
         Alert.alert("Could not hear you", "No transcript returned. Check console for details.");
       }
-    } catch (e) {
-      console.error(e);
-      Alert.alert("Error", "Transcription failed. Please type instead.");
+    } catch (e: any) {
+      Alert.alert("Transcription Error", String(e?.message || e));
     }
   }
 

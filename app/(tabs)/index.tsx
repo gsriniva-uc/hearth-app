@@ -128,11 +128,16 @@ export default function TodayScreen() {
         }
       );
       const speechData = await speechRes.json();
+      console.log("Speech API response:", JSON.stringify(speechData));
+      if (speechData.error) {
+        Alert.alert("Speech API Error", speechData.error.message || JSON.stringify(speechData.error));
+        return;
+      }
       const transcript = speechData.results?.[0]?.alternatives?.[0]?.transcript || "";
       if (transcript) {
         setChatInput(transcript);
       } else {
-        Alert.alert("Could not hear you", "Please try speaking again.");
+        Alert.alert("Could not hear you", "No transcript returned. Check console for details.");
       }
     } catch (e) {
       console.error(e);

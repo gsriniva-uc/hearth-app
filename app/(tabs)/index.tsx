@@ -118,8 +118,7 @@ export default function TodayScreen() {
           },
           body: JSON.stringify({
             config: {
-              encoding:                   "LINEAR16",
-              sampleRateHertz:            44100,
+              encoding:                   "ENCODING_UNSPECIFIED",
               languageCode:               "en-US",
               model:                      "default",
               enableAutomaticPunctuation: true,

@@ -6,7 +6,7 @@ import {
 } from "react-native";
 import { API_BASE_URL } from "@/constants/config";
 
-const USER_ID = "test_user"; // temporary until login is wired
+const USER_ID = "cbd7d5069755";
 
 export default function TodayScreen() {
   const [todayEvents, setTodayEvents] = useState([]);

@@ -1,5 +1,5 @@
-import { useEffect, useState, useCallback } from "react";
-import { Stack } from "expo-router";
+import { useEffect, useState, useCallback, createContext, useContext } from "react";
+import { Stack, useRouter, useSegments } from "expo-router";
 import { View, ActivityIndicator, Linking } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -10,16 +10,54 @@ export interface User {
   picture?: string;
 }
 
-export let globalUser: User | null = null;
-export function setGlobalUser(u: User | null) { globalUser = u; }
+// ── Auth Context — share user across all screens ──────────────────────────────
+interface AuthContextType {
+  user:         User | null;
+  setUser:      (u: User | null) => void;
+  signOut:      () => Promise<void>;
+}
 
+const AuthContext = createContext<AuthContextType>({
+  user: null, setUser: () => {}, signOut: async () => {},
+});
+
+export function useAuth() { return useContext(AuthContext); }
+
+// ── Auth guard — redirects based on login state ───────────────────────────────
+function AuthGuard({ user, loading }: { user: User | null; loading: boolean }) {
+  const segments = useSegments();
+  const router   = useRouter();
+
+  useEffect(() => {
+    if (loading) return;
+    const inAuth = segments[0] === "(auth)";
+    if (!user && !inAuth) {
+      router.replace("/(auth)/login");
+    } else if (user && inAuth) {
+      router.replace("/(tabs)");
+    }
+  }, [user, loading, segments]);
+
+  return null;
+}
+
+// ── Root layout ────────────────────────────────────────────────────────────────
 export default function RootLayout() {
-  const [user,    setUser]    = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [user,    setUserState] = useState<User | null>(null);
+  const [loading, setLoading]   = useState(true);
 
-  const applyUser = (u: User) => {
-    globalUser = u;
-    setUser(u);
+  const setUser = async (u: User | null) => {
+    setUserState(u);
+    if (u) {
+      await AsyncStorage.setItem("hearth_user", JSON.stringify(u));
+    } else {
+      await AsyncStorage.removeItem("hearth_user");
+    }
+  };
+
+  const signOut = async () => {
+    await AsyncStorage.multiRemove(["hearth_user", "google_token"]);
+    setUserState(null);
   };
 
   const handleDeepLink = useCallback(async (url: string) => {
@@ -30,9 +68,8 @@ export default function RootLayout() {
     try {
       const userData = JSON.parse(decodeURIComponent(userMatch[1])) as User;
       const token    = decodeURIComponent(tokenMatch[1]);
-      await AsyncStorage.setItem("hearth_user",  JSON.stringify(userData));
       await AsyncStorage.setItem("google_token", token);
-      applyUser(userData);
+      setUser(userData);
     } catch (e) {
       console.error("Deep link error:", e);
     }
@@ -40,17 +77,13 @@ export default function RootLayout() {
 
   useEffect(() => {
     AsyncStorage.getItem("hearth_user").then((raw) => {
-      if (raw) {
-        const saved = JSON.parse(raw) as User;
-        applyUser(saved);
-      }
+      if (raw) setUserState(JSON.parse(raw));
       setLoading(false);
     });
-
     const sub = Linking.addEventListener("url", ({ url }) => handleDeepLink(url));
     Linking.getInitialURL().then((url) => { if (url) handleDeepLink(url); });
     return () => sub.remove();
-  }, [handleDeepLink]);
+  }, []);
 
   if (loading) {
     return (
@@ -62,11 +95,9 @@ export default function RootLayout() {
   }
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      {user
-        ? <Stack.Screen name="(tabs)" />
-        : <Stack.Screen name="(auth)/login" />
-      }
-    </Stack>
+    <AuthContext.Provider value={{ user, setUser, signOut }}>
+      <AuthGuard user={user} loading={loading} />
+      <Stack screenOptions={{ headerShown: false }} />
+    </AuthContext.Provider>
   );
 }

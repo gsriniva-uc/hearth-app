@@ -124,9 +124,7 @@ export default function TodayScreen() {
           },
           body: JSON.stringify({
             config: {
-              encoding:                   "ENCODING_UNSPECIFIED",
               languageCode:               "en-US",
-              model:                      "default",
               enableAutomaticPunctuation: true,
             },
             audio: { content: base64Audio },

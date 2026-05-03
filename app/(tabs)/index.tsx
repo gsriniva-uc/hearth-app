@@ -89,7 +89,11 @@ export default function TodayScreen() {
       await recordingRef.current.stopAndUnloadAsync();
       const uri = recordingRef.current.getURI();
       recordingRef.current = null;
-      if (uri) await transcribeAudio(uri);
+      if (uri) {
+        const info = await FileSystem.getInfoAsync(uri);
+        Alert.alert("Audio file", `URI: ${uri}\nSize: ${JSON.stringify(info)}`);
+        // await transcribeAudio(uri);
+      }
     } catch (e) {
       console.error(e);
     } finally {

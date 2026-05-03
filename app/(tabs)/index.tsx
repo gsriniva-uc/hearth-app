@@ -99,54 +99,29 @@ export default function TodayScreen() {
 
   async function transcribeAudio(uri: string) {
     try {
-      const tokenRes  = await fetch(`${API_BASE_URL}/auth/speech-token?user_id=${USER_ID}`);
-      const tokenData = await tokenRes.json();
-      if (!tokenData.token) {
-        Alert.alert("Error", "Could not get speech token. Please sign in again.");
-        return;
-      }
-      const fileInfo = await FileSystem.getInfoAsync(uri);
-      const response  = await fetch(uri);
-      const blob      = await response.blob();
-      const base64Audio = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload  = () => resolve((reader.result as string).split(",")[1]);
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
+      const base64Audio = await FileSystem.readAsStringAsync(uri, {
+        encoding: "base64",
       });
-      const speechRes = await fetch(
-        "https://speech.googleapis.com/v1/speech:recognize",
+      const res  = await fetch(
+        `${API_BASE_URL}/transcribe?user_id=${USER_ID}`,
         {
           method:  "POST",
-          headers: {
-            "Content-Type":  "application/json",
-            "Authorization": "Bearer " + tokenData.token,
-          },
-          body: JSON.stringify({
-            config: {
-              encoding:              "LINEAR16",
-              sampleRateHertz:       16000,
-              languageCode:          "en-US",
-              enableAutomaticPunctuation: true,
-            },
-            audio: { content: base64Audio },
-          }),
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({ audio: base64Audio }),
         }
       );
-      const speechData = await speechRes.json();
-      console.log("Speech API response:", JSON.stringify(speechData));
-      if (speechData.error) {
-        Alert.alert("Speech API Error", speechData.error.message || JSON.stringify(speechData.error));
+      const data = await res.json();
+      if (data.error) {
+        Alert.alert("Transcription Error", data.error);
         return;
       }
-      const transcript = speechData.results?.[0]?.alternatives?.[0]?.transcript || "";
-      if (transcript) {
-        setChatInput(transcript);
+      if (data.transcript) {
+        setChatInput(data.transcript);
       } else {
-        Alert.alert("Could not hear you", "No transcript returned. Check console for details.");
+        Alert.alert("Could not hear you", "Please speak clearly and try again.");
       }
     } catch (e: any) {
-      Alert.alert("Transcription Error", String(e?.message || e));
+      Alert.alert("Error", String(e?.message || e));
     }
   }
 

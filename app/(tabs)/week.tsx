@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View, Text, ScrollView, TouchableOpacity,
   RefreshControl, StyleSheet, ActivityIndicator,
@@ -9,6 +9,7 @@ import { API_BASE_URL } from "@/constants/config";
 const WINDOWS = [7, 14, 30, 60];
 
 export default function WeekScreen() {
+  const [expandedId, setExpandedId] = React.useState<number | null>(null);
   const { user }   = useAuth();
   const USER_ID    = user?.user_id || "";
   const [events,     setEvents]     = useState<any[]>([]);

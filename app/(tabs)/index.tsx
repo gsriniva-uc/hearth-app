@@ -144,8 +144,16 @@ export default function TodayScreen() {
       setChatInput("");
       // Refresh events in case agent added one
       loadData();
+      // Clear reply after 3 seconds if it was an add confirmation
+      if ((data.response || "").includes("✅")) {
+        setTimeout(() => setChatReply(""), 3000);
+      }
       // Refresh events in case agent added one
       loadData();
+      // Clear reply after 3 seconds if it was an add confirmation
+      if ((data.response || "").includes("✅")) {
+        setTimeout(() => setChatReply(""), 3000);
+      }
     } catch { Alert.alert("Error", "Could not reach Hearth."); }
     finally { setChatLoading(false); }
   }
@@ -194,6 +202,7 @@ export default function TodayScreen() {
             {ev.event_type.replace(/_/g, " ")
               .replace(/\b\w/g, (c: string) => c.toUpperCase())}
           </Text>
+          {ev.event_time ? <Text style={styles.eventTime}>🕐 {ev.event_time}</Text> : null}
           {ev.notes ? <Text style={styles.eventNotes}>{ev.notes}</Text> : null}
         </View>
       ))}

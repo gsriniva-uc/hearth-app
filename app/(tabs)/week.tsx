@@ -36,9 +36,17 @@ export default function WeekScreen() {
   }, {});
 
   const EVENT_ICONS: Record<string, string> = {
-    dress_down_day:"👕", early_dismissal:"🏫", recital:"🎭",
-    movie_night:"🎬", field_trip:"🚌", special_day:"⭐",
-    doctor_appointment:"🏥", sports_game:"⚽", school_holiday:"🎉", other:"📅",
+    dress_down_day:      "👕",
+    early_dismissal:     "🏫",
+    recital:             "🎭",
+    movie_night:         "🎬",
+    field_trip:          "🚌",
+    special_day:         "⭐",
+    doctor_appointment:  "🏥",
+    sports_game:         "⚽",
+    school_holiday:      "🎉",
+    activity:            "🎨",
+    other:               "📅",
   };
 
   return (

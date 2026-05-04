@@ -142,6 +142,8 @@ export default function TodayScreen() {
       const data = await res.json();
       setChatReply(data.response || "");
       setChatInput("");
+      // Refresh events in case agent added one
+      loadData();
     } catch { Alert.alert("Error", "Could not reach Hearth."); }
     finally { setChatLoading(false); }
   }

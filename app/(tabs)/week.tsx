@@ -68,7 +68,7 @@ export default function WeekScreen() {
           .map(([dateStr, evs]) => {
             const d = new Date(dateStr + "T12:00:00");
             const label = d.toLocaleDateString("en-US",
-              { weekday:"long", month:"short", day:"numeric" });
+              { weekday:"short", month:"2-digit", day:"2-digit", year:"2-digit" });
             return (
               <View key={dateStr} style={styles.dayGroup}>
                 <Text style={styles.dayLabel}>{label}</Text>

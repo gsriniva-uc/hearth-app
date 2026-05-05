@@ -39,6 +39,7 @@ export default function LoginScreen() {
         return;
       }
       await AsyncStorage.setItem("hearth_user", JSON.stringify(data.user));
+      await AsyncStorage.setItem("google_token", "code_auth");
       setUser(data.user);
     } catch {
       Alert.alert("Error", "Could not verify code.");

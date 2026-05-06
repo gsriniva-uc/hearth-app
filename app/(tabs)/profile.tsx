@@ -1,28 +1,64 @@
 import { useState, useEffect } from "react";
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, Alert, Linking, Share,
+  StyleSheet, Alert, Linking, Share, TextInput, Modal,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/app/_layout";
 import { API_BASE_URL } from "@/constants/config";
 
-const APK_URL = "https://expo.dev/accounts/gsriniva/projects/hearth-app-gs-aliq2kjh1s8wphd0xuvka/builds/f3a07f1d-446d-419e-a5c7-3f7535d552eb";
+const APK_URL = "https://expo.dev/accounts/gsriniva/projects/hearth-app-gs-aliq2kjh1s8wphd0xuvka/builds/392c23ab-ac12-4042-b184-8842bf7a9e02";
 
 export default function ProfileScreen() {
   const { user, signOut } = useAuth();
-  const [children, setChildren] = useState<any[]>([]);
-  const [gmails,   setGmails]   = useState<string[]>([]);
-  const [scanning, setScanning] = useState(false);
+  const [children,  setChildren]  = useState<any[]>([]);
+  const [gmails,    setGmails]    = useState<string[]>([]);
+  const [scanning,  setScanning]  = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [childName, setChildName] = useState("");
+  const [childGrade,setChildGrade]= useState("");
+  const [saving,    setSaving]    = useState(false);
 
   useEffect(() => {
     if (!user) return;
-    fetch(`${API_BASE_URL}/profiles?user_id=${user.user_id}`)
-      .then(r => r.json()).then(setChildren).catch(console.error);
+    loadChildren();
     fetch(`${API_BASE_URL}/connected-gmails?user_id=${user.user_id}`)
       .then(r => r.json()).then(d => setGmails(d.emails || [user.email]))
       .catch(() => setGmails([user?.email || ""]));
   }, [user]);
+
+  function loadChildren() {
+    if (!user) return;
+    fetch(`${API_BASE_URL}/profiles?user_id=${user.user_id}`)
+      .then(r => r.json()).then(setChildren).catch(console.error);
+  }
+
+  async function handleAddChild() {
+    if (!childName.trim()) {
+      Alert.alert("Please enter a name");
+      return;
+    }
+    setSaving(true);
+    try {
+      await fetch(`${API_BASE_URL}/profiles`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: user?.user_id,
+          name:    childName.trim(),
+          grade:   childGrade.trim() || null,
+        }),
+      });
+      setChildName("");
+      setChildGrade("");
+      setShowModal(false);
+      loadChildren();
+    } catch {
+      Alert.alert("Error", "Could not save child profile.");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   async function handleSignOut() {
     Alert.alert("Sign out", "Are you sure?", [
@@ -57,16 +93,12 @@ export default function ProfileScreen() {
     }
   }
 
-  if (!user) {
-    return (
-      <View style={{ flex:1, alignItems:"center", justifyContent:"center", backgroundColor:"#FFF8F0" }}>
-        <Text style={{ color:"#A0856B" }}>Loading...</Text>
-      </View>
-    );
-  }
+  if (!user) return null;
 
   return (
     <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+
+      {/* User card */}
       <View style={styles.userCard}>
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>{user.name[0]}</Text>
@@ -77,6 +109,7 @@ export default function ProfileScreen() {
         </View>
       </View>
 
+      {/* Connected Gmail */}
       <Text style={styles.section}>CONNECTED GMAIL ACCOUNTS</Text>
       {gmails.map((email, i) => (
         <View key={i} style={styles.row}>
@@ -96,64 +129,102 @@ export default function ProfileScreen() {
         </Text>
       </TouchableOpacity>
 
+      {/* Children */}
       <Text style={styles.section}>CHILDREN</Text>
       {children.length === 0
-        ? <Text style={{ color:"#A0856B", fontStyle:"italic" }}>No profiles yet</Text>
+        ? <Text style={{ color:"#A0856B", fontStyle:"italic", marginBottom:8 }}>No children added yet</Text>
         : children.map((c: any) => (
           <View key={c.id} style={styles.childCard}>
             <Text style={styles.childName}>{c.name}</Text>
-            <Text style={{ fontSize:13, color:"#A0856B" }}>
-              {[c.grade && "Grade " + c.grade, c.school].filter(Boolean).join(" · ")}
-            </Text>
+            {c.grade ? <Text style={{ fontSize:13, color:"#A0856B" }}>Grade {c.grade}</Text> : null}
           </View>
         ))
       }
+      <TouchableOpacity style={styles.addBtn} onPress={() => setShowModal(true)}>
+        <Ionicons name="add-circle-outline" size={20} color="#E8734A" />
+        <Text style={{ color:"#E8734A", fontWeight:"600", fontSize:14 }}>Add a child</Text>
+      </TouchableOpacity>
 
+      {/* Share */}
       <Text style={styles.section}>SHARE HEARTH</Text>
       <TouchableOpacity style={styles.shareBtn}
         onPress={() => Share.share({ message: `Try Hearth — Family OS!\n\nDownload: ${APK_URL}` })}>
         <Ionicons name="share-social" size={20} color="#fff" />
         <Text style={{ color:"#fff", fontWeight:"700", fontSize:15 }}>Invite a friend</Text>
       </TouchableOpacity>
-      <Text style={{ fontSize:12, color:"#A0856B", marginTop:10, textAlign:"center", lineHeight:18 }}>
-        Friends sign in with their own Google account and get their own private calendar.
-      </Text>
 
+      {/* Sign out */}
       <Text style={styles.section}>ACCOUNT</Text>
       <TouchableOpacity style={styles.signOutBtn} onPress={handleSignOut}>
         <Ionicons name="log-out-outline" size={20} color="#E84A4A" />
         <Text style={{ color:"#E84A4A", fontWeight:"600", fontSize:15 }}>Sign out</Text>
       </TouchableOpacity>
+
+      {/* Add Child Modal */}
+      <Modal visible={showModal} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalBox}>
+            <Text style={styles.modalTitle}>Add a Child</Text>
+            <TextInput style={styles.input} placeholder="Child's name"
+              placeholderTextColor="#A0856B" value={childName}
+              onChangeText={setChildName} />
+            <TextInput style={styles.input} placeholder="Grade (optional)"
+              placeholderTextColor="#A0856B" value={childGrade}
+              onChangeText={setChildGrade} />
+            <TouchableOpacity style={styles.saveBtn} onPress={handleAddChild}
+              disabled={saving}>
+              <Text style={{ color:"#fff", fontWeight:"700", fontSize:16 }}>
+                {saving ? "Saving..." : "Save"}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setShowModal(false)}
+              style={{ alignItems:"center", marginTop:12 }}>
+              <Text style={{ color:"#A0856B" }}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  scroll:    { flex:1, backgroundColor:"#FFF8F0" },
-  content:   { padding:20, paddingTop:60, paddingBottom:60 },
-  userCard:  { flexDirection:"row", alignItems:"center", backgroundColor:"#fff",
-               borderRadius:16, padding:16, marginBottom:24, elevation:2 },
-  avatar:    { width:56, height:56, borderRadius:28, backgroundColor:"#E8734A",
-               alignItems:"center", justifyContent:"center" },
-  avatarText:{ color:"#fff", fontSize:24, fontWeight:"700" },
-  userName:  { fontSize:18, fontWeight:"700", color:"#8B4513" },
-  userEmail: { fontSize:13, color:"#A0856B", marginTop:2 },
-  section:   { fontSize:11, fontWeight:"700", color:"#A0856B",
-               letterSpacing:1.5, marginBottom:10, marginTop:24 },
-  row:       { flexDirection:"row", alignItems:"center", backgroundColor:"#fff",
-               borderRadius:12, padding:14, marginBottom:8, elevation:1 },
-  addBtn:    { flexDirection:"row", alignItems:"center", gap:8, padding:14,
-               borderRadius:12, borderWidth:1.5, borderColor:"#E8734A",
-               borderStyle:"dashed", justifyContent:"center", marginTop:4 },
-  scanBtn:   { flexDirection:"row", alignItems:"center", gap:8,
-               backgroundColor:"#4A7BE8", borderRadius:12,
-               padding:14, justifyContent:"center", marginTop:10 },
-  childCard: { backgroundColor:"#fff", borderRadius:12, padding:14,
-               marginBottom:8, elevation:1 },
-  childName: { fontSize:16, fontWeight:"700", color:"#8B4513" },
-  shareBtn:  { flexDirection:"row", alignItems:"center", gap:10,
-               backgroundColor:"#E8734A", borderRadius:12,
-               padding:16, justifyContent:"center" },
-  signOutBtn:{ flexDirection:"row", alignItems:"center", gap:10,
-               backgroundColor:"#FFF0F0", borderRadius:12, padding:16 },
+  scroll:       { flex:1, backgroundColor:"#FFF8F0" },
+  content:      { padding:20, paddingTop:60, paddingBottom:60 },
+  userCard:     { flexDirection:"row", alignItems:"center", backgroundColor:"#fff",
+                  borderRadius:16, padding:16, marginBottom:24, elevation:2 },
+  avatar:       { width:56, height:56, borderRadius:28, backgroundColor:"#E8734A",
+                  alignItems:"center", justifyContent:"center" },
+  avatarText:   { color:"#fff", fontSize:24, fontWeight:"700" },
+  userName:     { fontSize:18, fontWeight:"700", color:"#8B4513" },
+  userEmail:    { fontSize:13, color:"#A0856B", marginTop:2 },
+  section:      { fontSize:11, fontWeight:"700", color:"#A0856B",
+                  letterSpacing:1.5, marginBottom:10, marginTop:24 },
+  row:          { flexDirection:"row", alignItems:"center", backgroundColor:"#fff",
+                  borderRadius:12, padding:14, marginBottom:8, elevation:1 },
+  addBtn:       { flexDirection:"row", alignItems:"center", gap:8, padding:14,
+                  borderRadius:12, borderWidth:1.5, borderColor:"#E8734A",
+                  borderStyle:"dashed", justifyContent:"center", marginTop:4 },
+  scanBtn:      { flexDirection:"row", alignItems:"center", gap:8,
+                  backgroundColor:"#4A7BE8", borderRadius:12,
+                  padding:14, justifyContent:"center", marginTop:10 },
+  childCard:    { backgroundColor:"#fff", borderRadius:12, padding:14,
+                  marginBottom:8, elevation:1 },
+  childName:    { fontSize:16, fontWeight:"700", color:"#8B4513" },
+  shareBtn:     { flexDirection:"row", alignItems:"center", gap:10,
+                  backgroundColor:"#E8734A", borderRadius:12,
+                  padding:16, justifyContent:"center" },
+  signOutBtn:   { flexDirection:"row", alignItems:"center", gap:10,
+                  backgroundColor:"#FFF0F0", borderRadius:12, padding:16 },
+  modalOverlay: { flex:1, backgroundColor:"rgba(0,0,0,0.5)",
+                  justifyContent:"center", padding:24 },
+  modalBox:     { backgroundColor:"#FFF8F0", borderRadius:20, padding:24 },
+  modalTitle:   { fontSize:20, fontWeight:"800", color:"#8B4513",
+                  marginBottom:20, textAlign:"center" },
+  input:        { backgroundColor:"#fff", borderRadius:12, padding:14,
+                  fontSize:15, color:"#5C4033", borderWidth:1,
+                  borderColor:"#F5E6D3", marginBottom:12 },
+  saveBtn:      { backgroundColor:"#E8734A", borderRadius:12,
+                  padding:16, alignItems:"center" },
 });

@@ -10,6 +10,11 @@ import * as FileSystem from "expo-file-system/legacy";
 import { useAuth } from "@/app/_layout";
 import { API_BASE_URL } from "@/constants/config";
 
+const SCHOOL_TYPES    = ["dress_down_day","early_dismissal","recital","field_trip",
+                          "special_day","school_holiday","activity","sports_game","other"];
+const HEALTH_TYPES    = ["doctor_appointment"];
+const BILL_TYPES      = ["bill"];
+
 export default function TodayScreen() {
   const { user, signOut } = useAuth();
   const USER_ID = user?.user_id || "";
@@ -41,21 +46,12 @@ export default function TodayScreen() {
   async function startRecording() {
     try {
       const { granted } = await Audio.requestPermissionsAsync();
-      if (!granted) {
-        Alert.alert("Permission needed", "Please allow microphone access.");
-        return;
-      }
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-      });
+      if (!granted) { Alert.alert("Permission needed", "Please allow microphone access."); return; }
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
       const { recording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
+        Audio.RecordingOptionsPresets.HIGH_QUALITY);
       recordingRef.current = recording;
       setIsRecording(true);
-
-      // Silence detection
       recording.setOnRecordingStatusUpdate((status) => {
         if (!status.isRecording) return;
         const volume = status.metering ?? -160;
@@ -64,24 +60,15 @@ export default function TodayScreen() {
             silenceTimerRef.current = setTimeout(() => stopRecording(), 1500);
           }
         } else {
-          if (silenceTimerRef.current) {
-            clearTimeout(silenceTimerRef.current);
-            silenceTimerRef.current = null;
-          }
+          if (silenceTimerRef.current) { clearTimeout(silenceTimerRef.current); silenceTimerRef.current = null; }
         }
       });
       recording.setProgressUpdateInterval(100);
-    } catch (e) {
-      console.error(e);
-      Alert.alert("Error", "Could not start recording.");
-    }
+    } catch (e) { Alert.alert("Error", "Could not start recording."); }
   }
 
   async function stopRecording() {
-    if (silenceTimerRef.current) {
-      clearTimeout(silenceTimerRef.current);
-      silenceTimerRef.current = null;
-    }
+    if (silenceTimerRef.current) { clearTimeout(silenceTimerRef.current); silenceTimerRef.current = null; }
     if (!recordingRef.current) return;
     setIsRecording(false);
     setIsTranscribing(true);
@@ -90,39 +77,21 @@ export default function TodayScreen() {
       const uri = recordingRef.current.getURI();
       recordingRef.current = null;
       if (uri) await transcribeAudio(uri);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setIsTranscribing(false);
-    }
+    } catch (e) { console.error(e); }
+    finally { setIsTranscribing(false); }
   }
 
   async function transcribeAudio(uri: string) {
     try {
-      const base64Audio = await FileSystem.readAsStringAsync(uri, {
-        encoding: "base64",
+      const base64Audio = await FileSystem.readAsStringAsync(uri, { encoding: "base64" });
+      const res  = await fetch(`${API_BASE_URL}/transcribe?user_id=${USER_ID}`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body:   JSON.stringify({ audio: base64Audio }),
       });
-      const res  = await fetch(
-        `${API_BASE_URL}/transcribe?user_id=${USER_ID}`,
-        {
-          method:  "POST",
-          headers: { "Content-Type": "application/json" },
-          body:    JSON.stringify({ audio: base64Audio }),
-        }
-      );
       const data = await res.json();
-      if (data.error) {
-        Alert.alert("Transcription Error", data.error);
-        return;
-      }
-      if (data.transcript) {
-        setChatInput(data.transcript);
-      } else {
-        Alert.alert("Could not hear you", "Please speak clearly and try again.");
-      }
-    } catch (e: any) {
-      Alert.alert("Error", String(e?.message || e));
-    }
+      if (data.transcript) setChatInput(data.transcript);
+      else Alert.alert("Could not hear you", "Please try again.");
+    } catch (e: any) { Alert.alert("Error", String(e?.message || e)); }
   }
 
   async function handleMicPress() {
@@ -135,24 +104,15 @@ export default function TodayScreen() {
     setChatLoading(true);
     try {
       const res  = await fetch(`${API_BASE_URL}/agent`, {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ user_id: USER_ID, raw_text: chatInput.trim() }),
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body:   JSON.stringify({ user_id: USER_ID, raw_text: chatInput.trim() }),
       });
       const data = await res.json();
       setChatReply(data.response || "");
       setChatInput("");
-      // Refresh events in case agent added one
       loadData();
-      // Clear reply after 3 seconds if it was an add confirmation
       if ((data.response || "").includes("✅")) {
-        setTimeout(() => setChatReply(""), 3000);
-      }
-      // Refresh events in case agent added one
-      loadData();
-      // Clear reply after 3 seconds if it was an add confirmation
-      if ((data.response || "").includes("✅")) {
-        setTimeout(() => setChatReply(""), 3000);
+        setTimeout(() => setChatReply(""), 4000);
       }
     } catch { Alert.alert("Error", "Could not reach Hearth."); }
     finally { setChatLoading(false); }
@@ -165,13 +125,25 @@ export default function TodayScreen() {
     ]);
   }
 
+  const schoolEvents = todayEvents.filter(e => SCHOOL_TYPES.includes(e.event_type));
+  const healthEvents = todayEvents.filter(e => HEALTH_TYPES.includes(e.event_type));
+  const billEvents   = todayEvents.filter(e => BILL_TYPES.includes(e.event_type));
+
   const today = new Date().toLocaleDateString("en-US", {
     weekday: "long", month: "long", day: "numeric" });
 
-  if (loading) return (
-    <View style={styles.center}>
-      <ActivityIndicator size="large" color="#E8734A" />
+  const EventCard = ({ ev }: { ev: any }) => (
+    <View style={styles.eventCard}>
+      <Text style={styles.eventChild}>{ev.child_name !== "all" ? ev.child_name : ""}</Text>
+      <Text style={styles.eventLabel}>
+        {ev.notes || ev.event_type.replace(/_/g," ").replace(/\b\w/g,(c:string)=>c.toUpperCase())}
+      </Text>
+      {ev.event_time ? <Text style={styles.eventTime}>🕐 {ev.event_time}</Text> : null}
     </View>
+  );
+
+  if (loading) return (
+    <View style={styles.center}><ActivityIndicator size="large" color="#E8734A" /></View>
   );
 
   return (
@@ -190,28 +162,35 @@ export default function TodayScreen() {
         </TouchableOpacity>
       </View>
 
-      <Text style={styles.section}>TODAY</Text>
-      {todayEvents.length === 0 ? (
+      {/* School Events */}
+      <Text style={styles.section}>🏫 SCHOOL & ACTIVITIES</Text>
+      {schoolEvents.length === 0 ? (
         <View style={styles.emptyCard}>
           <Text style={styles.emptyText}>✓ Nothing scheduled today</Text>
         </View>
-      ) : todayEvents.map((ev: any) => (
-        <View key={ev.id} style={styles.eventCard}>
-          <Text style={styles.eventChild}>{ev.child_name}</Text>
-          <Text style={styles.eventLabel}>
-            {ev.event_type.replace(/_/g, " ")
-              .replace(/\b\w/g, (c: string) => c.toUpperCase())}
-          </Text>
-          {ev.event_time ? <Text style={styles.eventTime}>🕐 {ev.event_time}</Text> : null}
-          {ev.notes ? <Text style={styles.eventNotes}>{ev.notes}</Text> : null}
-        </View>
-      ))}
+      ) : schoolEvents.map(ev => <EventCard key={ev.id} ev={ev} />)}
 
+      {/* Health */}
+      <Text style={styles.section}>🏥 HEALTH & APPOINTMENTS</Text>
+      {healthEvents.length === 0 ? (
+        <View style={styles.emptyCard}>
+          <Text style={styles.emptyText}>✓ No appointments today</Text>
+        </View>
+      ) : healthEvents.map(ev => <EventCard key={ev.id} ev={ev} />)}
+
+      {/* Bills */}
+      <Text style={styles.section}>💳 BILLS & PAYMENTS</Text>
+      {billEvents.length === 0 ? (
+        <View style={styles.emptyCard}>
+          <Text style={styles.emptyText}>✓ No bills due today</Text>
+        </View>
+      ) : billEvents.map(ev => <EventCard key={ev.id} ev={ev} />)}
+
+      {/* Ask Hearth */}
       <Text style={styles.section}>ASK HEARTH</Text>
       {isRecording && (
         <View style={styles.statusCard}>
           <Text style={styles.statusText}>🎙️ Recording... tap mic to stop</Text>
-          <Text style={styles.statusHint}>Auto-stops when you finish speaking</Text>
         </View>
       )}
       {isTranscribing && (
@@ -228,7 +207,6 @@ export default function TodayScreen() {
           </TouchableOpacity>
         </View>
       ) : null}
-
       <View style={styles.chatRow}>
         <TextInput style={styles.input}
           placeholder="Ask or speak a reminder..."
@@ -241,11 +219,8 @@ export default function TodayScreen() {
           onPress={handleMicPress} disabled={isTranscribing}>
           {isTranscribing
             ? <ActivityIndicator size="small" color="#E8734A" />
-            : <Ionicons
-                name={isRecording ? "stop-circle" : "mic"}
-                size={20}
-                color={isRecording ? "#fff" : "#E8734A"} />
-          }
+            : <Ionicons name={isRecording ? "stop-circle" : "mic"} size={20}
+                color={isRecording ? "#fff" : "#E8734A"} />}
         </TouchableOpacity>
         <TouchableOpacity style={styles.sendBtn} onPress={handleChat}
           disabled={chatLoading || !chatInput.trim()}>
@@ -255,53 +230,50 @@ export default function TodayScreen() {
         </TouchableOpacity>
       </View>
       <Text style={styles.voiceHint}>
-        Tap 🎙️ → speak → auto-stops when done → tap → to send
+        Tap 🎙️ → speak → auto-stops → tap → to send
       </Text>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  scroll:       { flex: 1, backgroundColor: "#FFF8F0" },
-  content:      { padding: 20, paddingBottom: 40, paddingTop: 60 },
-  center:       { flex: 1, alignItems: "center", justifyContent: "center" },
-  header:       { flexDirection: "row", justifyContent: "space-between",
-                  alignItems: "flex-start", marginBottom: 8 },
-  greeting:     { fontSize: 26, fontWeight: "800", color: "#8B4513" },
-  date:         { fontSize: 14, color: "#A0856B", marginTop: 2 },
-  userTag:      { fontSize: 12, color: "#E8734A", marginTop: 4 },
-  signOutBtn:   { padding: 8, backgroundColor: "#F5E6D3",
-                  borderRadius: 20, marginTop: 4 },
-  section:      { fontSize: 11, fontWeight: "700", color: "#A0856B",
-                  letterSpacing: 1.5, marginTop: 16, marginBottom: 10 },
-  emptyCard:    { backgroundColor: "#F0FFF4", borderRadius: 12,
-                  padding: 16, alignItems: "center" },
-  emptyText:    { color: "#4A9E6B", fontWeight: "600" },
-  eventCard:    { backgroundColor: "#fff", borderRadius: 14, padding: 14,
-                  marginBottom: 8, elevation: 2 },
-  eventChild:   { fontSize: 13, fontWeight: "700", color: "#E8734A" },
-  eventLabel:   { fontSize: 15, fontWeight: "600", color: "#5C4033", marginTop: 2 },
-  eventNotes:   { fontSize: 12, color: "#A0856B", marginTop: 4 },
-  statusCard:   { flexDirection: "row", backgroundColor: "#FFF0E8",
-                  borderRadius: 12, padding: 12, marginBottom: 8,
-                  alignItems: "center", borderWidth: 1.5, borderColor: "#E8734A" },
-  statusText:   { color: "#E8734A", fontWeight: "600", fontSize: 14 },
-  statusHint:   { color: "#A0856B", fontSize: 11, marginTop: 2 },
-  replyCard:    { backgroundColor: "#F5E6D3", borderRadius: 12,
-                  padding: 14, marginBottom: 12 },
-  replyText:    { color: "#5C4033", fontSize: 14, lineHeight: 20 },
-  dismiss:      { color: "#A0856B", fontSize: 12, marginTop: 8, alignSelf: "flex-end" },
-  chatRow:      { flexDirection: "row", gap: 8, marginTop: 8, alignItems: "center" },
-  input:        { flex: 1, backgroundColor: "#fff", borderRadius: 12, padding: 14,
-                  fontSize: 14, color: "#5C4033", borderWidth: 1,
-                  borderColor: "#F5E6D3" },
-  micBtn:       { backgroundColor: "#FFF0E8", borderRadius: 12, padding: 13,
-                  justifyContent: "center", alignItems: "center",
-                  borderWidth: 1.5, borderColor: "#E8734A" },
-  micBtnActive: { backgroundColor: "#E8734A" },
-  sendBtn:      { backgroundColor: "#E8734A", borderRadius: 12, padding: 14,
-                  justifyContent: "center", alignItems: "center", width: 48 },
-  sendText:     { color: "#fff", fontSize: 18, fontWeight: "700" },
-  voiceHint:    { fontSize: 11, color: "#C0A090", marginTop: 8,
-                  textAlign: "center", fontStyle: "italic" },
+  scroll:        { flex:1, backgroundColor:"#FFF8F0" },
+  content:       { padding:20, paddingBottom:40, paddingTop:60 },
+  center:        { flex:1, alignItems:"center", justifyContent:"center" },
+  header:        { flexDirection:"row", justifyContent:"space-between",
+                   alignItems:"flex-start", marginBottom:8 },
+  greeting:      { fontSize:26, fontWeight:"800", color:"#8B4513" },
+  date:          { fontSize:14, color:"#A0856B", marginTop:2 },
+  userTag:       { fontSize:12, color:"#E8734A", marginTop:4 },
+  signOutBtn:    { padding:8, backgroundColor:"#F5E6D3", borderRadius:20, marginTop:4 },
+  section:       { fontSize:11, fontWeight:"700", color:"#A0856B",
+                   letterSpacing:1.5, marginTop:20, marginBottom:10 },
+  emptyCard:     { backgroundColor:"#F0FFF4", borderRadius:12,
+                   padding:12, alignItems:"center", marginBottom:4 },
+  emptyText:     { color:"#4A9E6B", fontWeight:"600", fontSize:13 },
+  eventCard:     { backgroundColor:"#fff", borderRadius:14, padding:14,
+                   marginBottom:8, elevation:2 },
+  eventChild:    { fontSize:13, fontWeight:"700", color:"#E8734A" },
+  eventLabel:    { fontSize:15, fontWeight:"600", color:"#5C4033", marginTop:2 },
+  eventTime:     { fontSize:12, color:"#E8734A", marginTop:3, fontWeight:"600" },
+  statusCard:    { flexDirection:"row", backgroundColor:"#FFF0E8", borderRadius:12,
+                   padding:12, marginBottom:8, alignItems:"center",
+                   borderWidth:1.5, borderColor:"#E8734A" },
+  statusText:    { color:"#E8734A", fontWeight:"600", fontSize:14 },
+  replyCard:     { backgroundColor:"#F5E6D3", borderRadius:12,
+                   padding:14, marginBottom:12 },
+  replyText:     { color:"#5C4033", fontSize:14, lineHeight:20 },
+  dismiss:       { color:"#A0856B", fontSize:12, marginTop:8, alignSelf:"flex-end" },
+  chatRow:       { flexDirection:"row", gap:8, marginTop:8, alignItems:"center" },
+  input:         { flex:1, backgroundColor:"#fff", borderRadius:12, padding:14,
+                   fontSize:14, color:"#5C4033", borderWidth:1, borderColor:"#F5E6D3" },
+  micBtn:        { backgroundColor:"#FFF0E8", borderRadius:12, padding:13,
+                   justifyContent:"center", alignItems:"center",
+                   borderWidth:1.5, borderColor:"#E8734A" },
+  micBtnActive:  { backgroundColor:"#E8734A" },
+  sendBtn:       { backgroundColor:"#E8734A", borderRadius:12, padding:14,
+                   justifyContent:"center", alignItems:"center", width:48 },
+  sendText:      { color:"#fff", fontSize:18, fontWeight:"700" },
+  voiceHint:     { fontSize:11, color:"#C0A090", marginTop:8,
+                   textAlign:"center", fontStyle:"italic" },
 });

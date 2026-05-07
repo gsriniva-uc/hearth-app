@@ -82,10 +82,14 @@ export default function ProfileScreen() {
     if (!user) return;
     setScanning(true);
     try {
-      const res    = await fetch(`${API_BASE_URL}/gmail/scan-all?user_id=${user.user_id}`,
-                                { method: "POST" });
-      const result = await res.json();
-      Alert.alert("Done", `Found ${result.new} new event(s) across ${result.accounts_scanned} account(s).`);
+      const [gmailRes, gcalRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/gmail/scan-all?user_id=${user.user_id}`, { method: "POST" }),
+        fetch(`${API_BASE_URL}/gcal/sync?user_id=${user.user_id}`, { method: "POST" }),
+      ]);
+      const gmail = await gmailRes.json();
+      const gcal  = await gcalRes.json();
+      const total = (gmail.new || 0) + (gcal.new || 0);
+      Alert.alert("Sync complete", `Found ${total} new event(s) from Gmail and Google Calendar.`);
     } catch {
       Alert.alert("Error", "Scan failed.");
     } finally {
@@ -125,7 +129,7 @@ export default function ProfileScreen() {
       <TouchableOpacity style={styles.scanBtn} onPress={handleScanAll} disabled={scanning}>
         <Ionicons name="refresh" size={18} color="#fff" />
         <Text style={{ color:"#fff", fontWeight:"600", fontSize:14 }}>
-          {scanning ? "Scanning..." : "Scan all Gmail accounts"}
+          {scanning ? "Scanning..." : "Scan Gmail + Google Calendar"}
         </Text>
       </TouchableOpacity>
 

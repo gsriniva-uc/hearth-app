@@ -214,7 +214,7 @@ export default function TodayScreen() {
       const data = await res.json();
       setChatReply(data.response || "");
       setChatInput("");
-      loadData();
+      setTimeout(() => loadData(), 500);
       if ((data.response || "").includes("✅"))
         setTimeout(() => setChatReply(""), 4000);
     } catch { Alert.alert("Error", "Could not reach Hearth."); }

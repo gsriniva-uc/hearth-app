@@ -334,8 +334,8 @@ export default function TodayScreen() {
       <View style={styles.chatRow}>
         <View style={styles.inputWrapper}>
           <TouchableOpacity style={styles.plusBtn}
-            onPress={() => setShowPlusMenu(true)}>
-            <Ionicons name="add-circle" size={24} color="#E8734A" />
+            onPress={() => setShowPlusMenu(v => !v)}>
+            <Ionicons name="add-circle" size={26} color="#E8734A" />
           </TouchableOpacity>
           <TextInput style={styles.inputInner}
             placeholder="Ask or speak a reminder..."
@@ -372,23 +372,30 @@ export default function TodayScreen() {
         </View>
       )}
 
-      {/* Plus menu — inline popup near + button */}
+      {/* Plus menu — floats above + button */}
       {showPlusMenu && (
-        <TouchableOpacity style={styles.menuBackdrop}
-          onPress={() => setShowPlusMenu(false)}
-          activeOpacity={1}>
+        <>
+          <TouchableOpacity style={styles.menuBackdrop}
+            onPress={() => setShowPlusMenu(false)}
+            activeOpacity={1} />
           <View style={styles.menuBox}>
-            <TouchableOpacity style={styles.menuItem} onPress={handleCamera}>
-              <Ionicons name="camera" size={22} color="#E8734A" />
+            <TouchableOpacity style={styles.menuItem}
+              onPress={() => { setShowPlusMenu(false); handleCamera(); }}>
+              <View style={styles.menuIcon}>
+                <Ionicons name="camera" size={20} color="#E8734A" />
+              </View>
               <Text style={styles.menuItemText}>Camera</Text>
             </TouchableOpacity>
             <View style={styles.menuDivider} />
-            <TouchableOpacity style={styles.menuItem} onPress={handlePhotosFiles}>
-              <Ionicons name="image" size={22} color="#E8734A" />
+            <TouchableOpacity style={styles.menuItem}
+              onPress={() => { setShowPlusMenu(false); handlePhotosFiles(); }}>
+              <View style={styles.menuIcon}>
+                <Ionicons name="image" size={20} color="#E8734A" />
+              </View>
               <Text style={styles.menuItemText}>Photos & Files</Text>
             </TouchableOpacity>
           </View>
-        </TouchableOpacity>
+        </>
       )}
 
       {/* Preview modal */}

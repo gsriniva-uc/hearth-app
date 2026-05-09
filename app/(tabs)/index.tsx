@@ -28,7 +28,6 @@ export default function TodayScreen() {
   const [refreshing,     setRefreshing]     = useState(false);
   const [chatLoading,    setChatLoading]    = useState(false);
   const [isRecording,    setIsRecording]    = useState(false);
-  const [showPlusMenu,   setShowPlusMenu]   = useState(false);
   const [analyzing,      setAnalyzing]      = useState(false);
   const [previewItems,   setPreviewItems]   = useState<any[]>([]);
   const [showPreview,    setShowPreview]    = useState(false);
@@ -334,7 +333,15 @@ export default function TodayScreen() {
       <View style={styles.chatRow}>
         <View style={styles.inputWrapper}>
           <TouchableOpacity style={styles.plusBtn}
-            onPress={() => setShowPlusMenu(v => !v)}>
+            onPress={() => Alert.alert(
+              "Add to Hearth",
+              "Choose an option",
+              [
+                { text: "📷 Camera", onPress: handleCamera },
+                { text: "🖼️ Photos & Files", onPress: handlePhotosFiles },
+                { text: "Cancel", style: "cancel" },
+              ]
+            )}>
             <Ionicons name="add-circle" size={26} color="#E8734A" />
           </TouchableOpacity>
           <TextInput style={styles.inputInner}
@@ -372,31 +379,7 @@ export default function TodayScreen() {
         </View>
       )}
 
-      {/* Plus menu — floats above + button */}
-      {showPlusMenu && (
-        <>
-          <TouchableOpacity style={styles.menuBackdrop}
-            onPress={() => setShowPlusMenu(false)}
-            activeOpacity={1} />
-          <View style={styles.menuBox}>
-            <TouchableOpacity style={styles.menuItem}
-              onPress={() => { setShowPlusMenu(false); handleCamera(); }}>
-              <View style={styles.menuIcon}>
-                <Ionicons name="camera" size={20} color="#E8734A" />
-              </View>
-              <Text style={styles.menuItemText}>Camera</Text>
-            </TouchableOpacity>
-            <View style={styles.menuDivider} />
-            <TouchableOpacity style={styles.menuItem}
-              onPress={() => { setShowPlusMenu(false); handlePhotosFiles(); }}>
-              <View style={styles.menuIcon}>
-                <Ionicons name="image" size={20} color="#E8734A" />
-              </View>
-              <Text style={styles.menuItemText}>Photos & Files</Text>
-            </TouchableOpacity>
-          </View>
-        </>
-      )}
+
 
       {/* Preview modal */}
       <Modal visible={showPreview} transparent animationType="slide">

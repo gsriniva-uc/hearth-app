@@ -332,16 +332,18 @@ export default function TodayScreen() {
         </View>
       ) : null}
       <View style={styles.chatRow}>
-        <TouchableOpacity style={styles.plusBtn}
-          onPress={() => setShowPlusMenu(true)}>
-          <Ionicons name="add" size={22} color="#E8734A" />
-        </TouchableOpacity>
-        <TextInput style={styles.input}
-          placeholder="Ask or speak a reminder..."
-          placeholderTextColor="#A0856B"
-          value={chatInput} onChangeText={setChatInput}
-          onSubmitEditing={handleChat} returnKeyType="send"
-          editable={!isRecording && !isTranscribing} />
+        <View style={styles.inputWrapper}>
+          <TouchableOpacity style={styles.plusBtn}
+            onPress={() => setShowPlusMenu(true)}>
+            <Ionicons name="add-circle" size={24} color="#E8734A" />
+          </TouchableOpacity>
+          <TextInput style={styles.inputInner}
+            placeholder="Ask or speak a reminder..."
+            placeholderTextColor="#A0856B"
+            value={chatInput} onChangeText={setChatInput}
+            onSubmitEditing={handleChat} returnKeyType="send"
+            editable={!isRecording && !isTranscribing} />
+        </View>
         <TouchableOpacity
           style={[styles.micBtn, isRecording && styles.micBtnActive]}
           onPress={handleMicPress} disabled={isTranscribing}>
@@ -370,23 +372,24 @@ export default function TodayScreen() {
         </View>
       )}
 
-      {/* Plus menu */}
-      <Modal visible={showPlusMenu} transparent animationType="fade">
-        <TouchableOpacity style={styles.menuOverlay}
-          onPress={() => setShowPlusMenu(false)}>
+      {/* Plus menu — inline popup near + button */}
+      {showPlusMenu && (
+        <TouchableOpacity style={styles.menuBackdrop}
+          onPress={() => setShowPlusMenu(false)}
+          activeOpacity={1}>
           <View style={styles.menuBox}>
             <TouchableOpacity style={styles.menuItem} onPress={handleCamera}>
-              <Ionicons name="camera" size={24} color="#E8734A" />
+              <Ionicons name="camera" size={22} color="#E8734A" />
               <Text style={styles.menuItemText}>Camera</Text>
             </TouchableOpacity>
             <View style={styles.menuDivider} />
             <TouchableOpacity style={styles.menuItem} onPress={handlePhotosFiles}>
-              <Ionicons name="image" size={24} color="#E8734A" />
+              <Ionicons name="image" size={22} color="#E8734A" />
               <Text style={styles.menuItemText}>Photos & Files</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
-      </Modal>
+      )}
 
       {/* Preview modal */}
       <Modal visible={showPreview} transparent animationType="slide">
@@ -479,6 +482,7 @@ const styles = StyleSheet.create({
   chatRow:       { flexDirection:"row", gap:8, marginTop:8, alignItems:"center" },
   input:         { flex:1, backgroundColor:"#fff", borderRadius:12, padding:14,
                    fontSize:14, color:"#5C4033", borderWidth:1, borderColor:"#F5E6D3" },
+
   micBtn:        { backgroundColor:"#FFF0E8", borderRadius:12, padding:13,
                    justifyContent:"center", alignItems:"center",
                    borderWidth:1.5, borderColor:"#E8734A" },

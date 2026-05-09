@@ -6,16 +6,16 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Audio } from "expo-av";
+import * as FileSystem from "expo-file-system/legacy";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
-import * as FileSystem from "expo-file-system/legacy";
 import { useAuth } from "@/app/_layout";
 import { API_BASE_URL } from "@/constants/config";
 
-const SCHOOL_TYPES    = ["dress_down_day","early_dismissal","recital","field_trip",
-                          "special_day","school_holiday","activity","sports_game","other"];
-const HEALTH_TYPES    = ["doctor_appointment"];
-const BILL_TYPES      = ["bill"];
+const SCHOOL_TYPES  = ["dress_down_day","early_dismissal","recital","field_trip",
+                       "special_day","school_holiday","activity","sports_game","other"];
+const HEALTH_TYPES  = ["doctor_appointment"];
+const BILL_TYPES    = ["bill"];
 
 export default function TodayScreen() {
   const { user, signOut } = useAuth();
@@ -28,10 +28,11 @@ export default function TodayScreen() {
   const [refreshing,     setRefreshing]     = useState(false);
   const [chatLoading,    setChatLoading]    = useState(false);
   const [isRecording,    setIsRecording]    = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [showPlusSheet,  setShowPlusSheet]  = useState(false);
   const [analyzing,      setAnalyzing]      = useState(false);
   const [previewItems,   setPreviewItems]   = useState<any[]>([]);
   const [showPreview,    setShowPreview]    = useState(false);
-  const [isTranscribing, setIsTranscribing] = useState(false);
 
   const recordingRef    = useRef<Audio.Recording | null>(null);
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -48,6 +49,7 @@ export default function TodayScreen() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  // ── Recording ──────────────────────────────────────────────────────────────
   async function startRecording() {
     try {
       const { granted } = await Audio.requestPermissionsAsync();
@@ -61,9 +63,8 @@ export default function TodayScreen() {
         if (!status.isRecording) return;
         const volume = status.metering ?? -160;
         if (volume < -40) {
-          if (!silenceTimerRef.current) {
+          if (!silenceTimerRef.current)
             silenceTimerRef.current = setTimeout(() => stopRecording(), 1500);
-          }
         } else {
           if (silenceTimerRef.current) { clearTimeout(silenceTimerRef.current); silenceTimerRef.current = null; }
         }
@@ -99,27 +100,29 @@ export default function TodayScreen() {
     } catch (e: any) { Alert.alert("Error", String(e?.message || e)); }
   }
 
+  async function handleMicPress() {
+    if (isRecording) await stopRecording();
+    else await startRecording();
+  }
+
+  // ── Image analysis ─────────────────────────────────────────────────────────
   async function analyzeImage(base64: string, mimeType: string) {
+    setShowPlusSheet(false);
     setAnalyzing(true);
-    setShowPlusMenu(false);
     try {
       const res  = await fetch(`${API_BASE_URL}/analyze-image`, {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({
-          user_id:   USER_ID,
-          image:     base64,
-          mime_type: mimeType,
-        }),
+        body:    JSON.stringify({ user_id: USER_ID, image: base64, mime_type: mimeType }),
       });
       const data = await res.json();
       if (data.items && data.items.length > 0) {
-        setPreviewItems(data.items);
+        setPreviewItems(data.items.map((i: any) => ({ ...i, selected: true })));
         setShowPreview(true);
       } else {
-        Alert.alert("Nothing found", "Could not extract any actionable items from this image.");
+        Alert.alert("Nothing found", "Could not extract any actionable items.");
       }
-    } catch (e: any) {
+    } catch {
       Alert.alert("Error", "Could not analyze image.");
     } finally {
       setAnalyzing(false);
@@ -127,85 +130,68 @@ export default function TodayScreen() {
   }
 
   async function handleCamera() {
-    setShowPlusMenu(false);
+    setShowPlusSheet(false);
     const { granted } = await ImagePicker.requestCameraPermissionsAsync();
-    if (!granted) {
-      Alert.alert("Permission needed", "Please allow camera access.");
-      return;
-    }
+    if (!granted) { Alert.alert("Permission needed", "Please allow camera access."); return; }
     const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ["images"],
       quality:    0.7,
       base64:     true,
     });
-    if (!result.canceled && result.assets[0].base64) {
+    if (!result.canceled && result.assets[0]?.base64) {
       await analyzeImage(result.assets[0].base64, "image/jpeg");
     }
   }
 
-  async function handlePhotosFiles() {
-    setShowPlusMenu(false);
-    Alert.alert("Choose", "What would you like to pick?", [
-      { text: "Photo from library", onPress: async () => {
-        const result = await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
-          quality:    0.7,
-          base64:     true,
-        });
-        if (!result.canceled && result.assets[0].base64) {
-          await analyzeImage(result.assets[0].base64, "image/jpeg");
-        }
-      }},
-      { text: "PDF or document", onPress: async () => {
-        const result = await DocumentPicker.getDocumentAsync({
-          type: ["application/pdf", "image/*"],
-          copyToCacheDirectory: true,
-        });
-        if (result.canceled) return;
-        const file = result.assets[0];
-        // Read as base64
-        const { FileSystem } = require("expo-file-system/legacy");
-        const b64 = await FileSystem.readAsStringAsync(file.uri, { encoding: "base64" });
-        await analyzeImage(b64, file.mimeType || "application/pdf");
-      }},
-      { text: "Cancel", style: "cancel" },
-    ]);
+  async function handlePhotos() {
+    setShowPlusSheet(false);
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      quality:    0.7,
+      base64:     true,
+    });
+    if (!result.canceled && result.assets[0]?.base64) {
+      await analyzeImage(result.assets[0].base64, "image/jpeg");
+    }
   }
 
-  async function confirmItems(confirmed: any[]) {
+  async function handleFiles() {
+    setShowPlusSheet(false);
+    const result = await DocumentPicker.getDocumentAsync({
+      type: ["application/pdf", "image/*"],
+      copyToCacheDirectory: true,
+    });
+    if (result.canceled) return;
+    const file = result.assets[0];
+    const b64  = await FileSystem.readAsStringAsync(file.uri, { encoding: "base64" });
+    await analyzeImage(b64, file.mimeType || "application/pdf");
+  }
+
+  async function confirmItems(items: any[]) {
     setShowPreview(false);
     let added = 0;
-    for (const item of confirmed) {
+    for (const item of items) {
       if (!item.selected) continue;
       try {
         if (item.type === "event") {
           await fetch(`${API_BASE_URL}/events`, {
-            method:  "POST",
-            headers: { "Content-Type": "application/json" },
-            body:    JSON.stringify({
-              user_id:    USER_ID,
-              child_name: item.child_name || "all",
-              event_type: item.event_type || "other",
-              event_date: item.event_date,
-              event_time: item.event_time || null,
-              notes:      item.notes || item.title,
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              user_id: USER_ID, child_name: item.child_name || "all",
+              event_type: item.event_type || "other", event_date: item.event_date,
+              event_time: item.event_time || null, notes: item.notes || item.title,
             }),
           });
-        } else if (item.type === "task") {
+        } else {
           await fetch(`${API_BASE_URL}/tasks`, {
-            method:  "POST",
-            headers: { "Content-Type": "application/json" },
-            body:    JSON.stringify({
-              user_id:       USER_ID,
-              task_type:     item.task_type || "bill",
-              title:         item.title,
-              due_date:      item.due_date || null,
-              amount:        item.amount || null,
-              payment_url:   item.payment_url || null,
-              contact_name:  item.contact_name || null,
-              draft_subject: item.draft_subject || null,
-              draft_body:    item.draft_body || null,
-              draft_to:      item.draft_to || null,
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              user_id: USER_ID, task_type: item.task_type || "bill",
+              title: item.title, due_date: item.due_date || null,
+              amount: item.amount || null, payment_url: item.payment_url || null,
+              contact_name: item.contact_name || null,
+              draft_to: item.draft_to || null, draft_subject: item.draft_subject || null,
+              draft_body: item.draft_body || null,
             }),
           });
         }
@@ -213,14 +199,10 @@ export default function TodayScreen() {
       } catch (e) { console.error(e); }
     }
     loadData();
-    Alert.alert("Done", added + " item(s) added successfully.");
+    Alert.alert("Done", added + " item(s) added.");
   }
 
-  async function handleMicPress() {
-    if (isRecording) await stopRecording();
-    else await startRecording();
-  }
-
+  // ── Chat ───────────────────────────────────────────────────────────────────
   async function handleChat() {
     if (!chatInput.trim() || !USER_ID) return;
     setChatLoading(true);
@@ -233,9 +215,8 @@ export default function TodayScreen() {
       setChatReply(data.response || "");
       setChatInput("");
       loadData();
-      if ((data.response || "").includes("✅")) {
+      if ((data.response || "").includes("✅"))
         setTimeout(() => setChatReply(""), 4000);
-      }
     } catch { Alert.alert("Error", "Could not reach Hearth."); }
     finally { setChatLoading(false); }
   }
@@ -256,7 +237,7 @@ export default function TodayScreen() {
 
   const EventCard = ({ ev }: { ev: any }) => (
     <View style={styles.eventCard}>
-      <Text style={styles.eventChild}>{ev.child_name !== "all" ? ev.child_name : ""}</Text>
+      {ev.child_name !== "all" && <Text style={styles.eventChild}>{ev.child_name}</Text>}
       <Text style={styles.eventLabel}>
         {ev.notes || ev.event_type.replace(/_/g," ").replace(/\b\w/g,(c:string)=>c.toUpperCase())}
       </Text>
@@ -270,148 +251,170 @@ export default function TodayScreen() {
 
   return (
     <>
-    <ScrollView style={styles.scroll} contentContainerStyle={styles.content}
-      refreshControl={<RefreshControl refreshing={refreshing}
-        onRefresh={() => { setRefreshing(true); loadData(); }} />}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}
+        refreshControl={<RefreshControl refreshing={refreshing}
+          onRefresh={() => { setRefreshing(true); loadData(); }} />}>
 
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.greeting}>Good morning 🌅</Text>
-          <Text style={styles.date}>{today}</Text>
-          {user && <Text style={styles.userTag}>👤 {user.name}</Text>}
-        </View>
-        <TouchableOpacity onPress={handleSignOut} style={styles.signOutBtn}>
-          <Ionicons name="log-out-outline" size={22} color="#A0856B" />
-        </TouchableOpacity>
-      </View>
-
-      {/* School Events */}
-      <Text style={styles.section}>🏫 SCHOOL & ACTIVITIES</Text>
-      {schoolEvents.length === 0 ? (
-        <View style={styles.emptyCard}>
-          <Text style={styles.emptyText}>✓ Nothing scheduled today</Text>
-        </View>
-      ) : schoolEvents.map(ev => <EventCard key={ev.id} ev={ev} />)}
-
-      {/* Health */}
-      <Text style={styles.section}>🏥 HEALTH & APPOINTMENTS</Text>
-      {healthEvents.length === 0 ? (
-        <View style={styles.emptyCard}>
-          <Text style={styles.emptyText}>✓ No appointments today</Text>
-        </View>
-      ) : healthEvents.map(ev => <EventCard key={ev.id} ev={ev} />)}
-
-      {/* Bills */}
-      <Text style={styles.section}>💳 BILLS & PAYMENTS</Text>
-      {billEvents.length === 0 ? (
-        <View style={styles.emptyCard}>
-          <Text style={styles.emptyText}>✓ No bills due today</Text>
-        </View>
-      ) : billEvents.map(ev => <EventCard key={ev.id} ev={ev} />)}
-
-      {/* Ask Hearth */}
-      <Text style={styles.section}>ASK HEARTH</Text>
-      {isRecording && (
-        <View style={styles.statusCard}>
-          <Text style={styles.statusText}>🎙️ Recording... tap mic to stop</Text>
-        </View>
-      )}
-      {isTranscribing && (
-        <View style={styles.statusCard}>
-          <ActivityIndicator size="small" color="#E8734A" />
-          <Text style={styles.statusText}>  Transcribing...</Text>
-        </View>
-      )}
-      {chatReply ? (
-        <View style={styles.replyCard}>
-          <Text style={styles.replyText}>{chatReply}</Text>
-          <TouchableOpacity onPress={() => setChatReply("")}>
-            <Text style={styles.dismiss}>Dismiss</Text>
+        {/* Header */}
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.greeting}>Good morning 🌅</Text>
+            <Text style={styles.date}>{today}</Text>
+            {user && <Text style={styles.userTag}>👤 {user.name}</Text>}
+          </View>
+          <TouchableOpacity onPress={handleSignOut} style={styles.signOutBtn}>
+            <Ionicons name="log-out-outline" size={22} color="#A0856B" />
           </TouchableOpacity>
         </View>
-      ) : null}
-      <View style={styles.chatRow}>
-        <View style={styles.inputWrapper}>
+
+        {/* School */}
+        <Text style={styles.section}>🏫 SCHOOL & ACTIVITIES</Text>
+        {schoolEvents.length === 0
+          ? <View style={styles.emptyCard}><Text style={styles.emptyText}>✓ Nothing scheduled today</Text></View>
+          : schoolEvents.map(ev => <EventCard key={ev.id} ev={ev} />)}
+
+        {/* Health */}
+        <Text style={styles.section}>🏥 HEALTH & APPOINTMENTS</Text>
+        {healthEvents.length === 0
+          ? <View style={styles.emptyCard}><Text style={styles.emptyText}>✓ No appointments today</Text></View>
+          : healthEvents.map(ev => <EventCard key={ev.id} ev={ev} />)}
+
+        {/* Bills */}
+        <Text style={styles.section}>💳 BILLS & PAYMENTS</Text>
+        {billEvents.length === 0
+          ? <View style={styles.emptyCard}><Text style={styles.emptyText}>✓ No bills due today</Text></View>
+          : billEvents.map(ev => <EventCard key={ev.id} ev={ev} />)}
+
+        {/* Ask Hearth */}
+        <Text style={styles.section}>ASK HEARTH</Text>
+
+        {isRecording && (
+          <View style={styles.statusCard}>
+            <Text style={styles.statusText}>🎙️ Recording... tap mic to stop</Text>
+          </View>
+        )}
+        {isTranscribing && (
+          <View style={styles.statusCard}>
+            <ActivityIndicator size="small" color="#E8734A" />
+            <Text style={styles.statusText}>  Transcribing...</Text>
+          </View>
+        )}
+        {analyzing && (
+          <View style={styles.statusCard}>
+            <ActivityIndicator size="small" color="#E8734A" />
+            <Text style={styles.statusText}>  Analyzing image with AI...</Text>
+          </View>
+        )}
+
+        {chatReply ? (
+          <View style={styles.replyCard}>
+            <Text style={styles.replyText}>{chatReply}</Text>
+            <TouchableOpacity onPress={() => setChatReply("")}>
+              <Text style={styles.dismiss}>Dismiss</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
+        {/* Input bar — GPT style */}
+        <View style={styles.inputBar}>
           <TouchableOpacity style={styles.plusBtn}
-            onPress={() => Alert.alert(
-              "Add to Hearth",
-              "Choose an option",
-              [
-                { text: "📷 Camera", onPress: handleCamera },
-                { text: "🖼️ Photos & Files", onPress: handlePhotosFiles },
-                { text: "Cancel", style: "cancel" },
-              ]
-            )}>
-            <Ionicons name="add-circle" size={26} color="#E8734A" />
+            onPress={() => setShowPlusSheet(true)}>
+            <Ionicons name="add" size={22} color="#666" />
           </TouchableOpacity>
-          <TextInput style={styles.inputInner}
+          <TextInput
+            style={styles.inputField}
             placeholder="Ask or speak a reminder..."
             placeholderTextColor="#A0856B"
-            value={chatInput} onChangeText={setChatInput}
-            onSubmitEditing={handleChat} returnKeyType="send"
-            editable={!isRecording && !isTranscribing} />
+            value={chatInput}
+            onChangeText={setChatInput}
+            onSubmitEditing={handleChat}
+            returnKeyType="send"
+            editable={!isRecording && !isTranscribing}
+            multiline
+          />
+          <TouchableOpacity
+            style={[styles.micBtn, isRecording && styles.micBtnActive]}
+            onPress={handleMicPress}
+            disabled={isTranscribing}>
+            {isTranscribing
+              ? <ActivityIndicator size="small" color="#E8734A" />
+              : <Ionicons
+                  name={isRecording ? "stop-circle" : "mic"}
+                  size={20}
+                  color={isRecording ? "#fff" : "#666"} />}
+          </TouchableOpacity>
+          {chatInput.trim() ? (
+            <TouchableOpacity style={styles.sendBtn} onPress={handleChat}
+              disabled={chatLoading}>
+              {chatLoading
+                ? <ActivityIndicator size="small" color="#fff" />
+                : <Ionicons name="arrow-up" size={18} color="#fff" />}
+            </TouchableOpacity>
+          ) : null}
         </View>
-        <TouchableOpacity
-          style={[styles.micBtn, isRecording && styles.micBtnActive]}
-          onPress={handleMicPress} disabled={isTranscribing}>
-          {isTranscribing
-            ? <ActivityIndicator size="small" color="#E8734A" />
-            : <Ionicons name={isRecording ? "stop-circle" : "mic"} size={20}
-                color={isRecording ? "#fff" : "#E8734A"} />}
+
+      </ScrollView>
+
+      {/* Plus sheet — GPT style bottom panel */}
+      <Modal visible={showPlusSheet} transparent animationType="slide">
+        <TouchableOpacity style={styles.sheetBackdrop}
+          onPress={() => setShowPlusSheet(false)} activeOpacity={1}>
+          <View style={styles.sheet}>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.sheetTitle}>Add to Hearth</Text>
+            <View style={styles.sheetGrid}>
+              <TouchableOpacity style={styles.sheetItem} onPress={handleCamera}>
+                <View style={styles.sheetIconBox}>
+                  <Ionicons name="camera" size={28} color="#5C4033" />
+                </View>
+                <Text style={styles.sheetItemLabel}>Camera</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.sheetItem} onPress={handlePhotos}>
+                <View style={styles.sheetIconBox}>
+                  <Ionicons name="image" size={28} color="#5C4033" />
+                </View>
+                <Text style={styles.sheetItemLabel}>Photos</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.sheetItem} onPress={handleFiles}>
+                <View style={styles.sheetIconBox}>
+                  <Ionicons name="document-attach" size={28} color="#5C4033" />
+                </View>
+                <Text style={styles.sheetItemLabel}>Files</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.sendBtn} onPress={handleChat}
-          disabled={chatLoading || !chatInput.trim()}>
-          {chatLoading
-            ? <ActivityIndicator size="small" color="#fff" />
-            : <Text style={styles.sendText}>→</Text>}
-        </TouchableOpacity>
-      </View>
-      <Text style={styles.voiceHint}>
-        Tap 🎙️ → speak → auto-stops → tap → to send
-      </Text>
-    </ScrollView>
-
-      {/* Analyzing overlay */}
-      {analyzing && (
-        <View style={styles.analyzingOverlay}>
-          <ActivityIndicator size="large" color="#E8734A" />
-          <Text style={styles.analyzingText}>Analyzing with AI...</Text>
-        </View>
-      )}
-
-
+      </Modal>
 
       {/* Preview modal */}
       <Modal visible={showPreview} transparent animationType="slide">
         <View style={styles.previewOverlay}>
           <View style={styles.previewBox}>
             <Text style={styles.previewTitle}>Review extracted items</Text>
-            <Text style={styles.previewSubtitle}>
-              Select items to add to Hearth
-            </Text>
+            <Text style={styles.previewSubtitle}>Tap to select/deselect</Text>
             <ScrollView style={{ maxHeight: 360 }}>
               {previewItems.map((item, i) => (
-                <TouchableOpacity key={i} style={[
-                  styles.previewItem,
-                  item.selected && styles.previewItemSelected
-                ]} onPress={() => {
-                  const updated = [...previewItems];
-                  updated[i].selected = !updated[i].selected;
-                  setPreviewItems(updated);
-                }}>
-                  <View style={styles.previewCheckbox}>
-                    {item.selected
-                      ? <Ionicons name="checkmark-circle" size={22} color="#4A9E6B" />
-                      : <Ionicons name="ellipse-outline" size={22} color="#C0A090" />
-                    }
-                  </View>
-                  <View style={{ flex: 1 }}>
+                <TouchableOpacity key={i}
+                  style={[styles.previewItem, item.selected && styles.previewItemSelected]}
+                  onPress={() => {
+                    const u = [...previewItems];
+                    u[i] = { ...u[i], selected: !u[i].selected };
+                    setPreviewItems(u);
+                  }}>
+                  <Ionicons
+                    name={item.selected ? "checkmark-circle" : "ellipse-outline"}
+                    size={22} color={item.selected ? "#4A9E6B" : "#C0A090"} />
+                  <View style={{ flex: 1, marginLeft: 10 }}>
                     <Text style={styles.previewItemTitle}>{item.title}</Text>
                     {item.event_date
-                      ? <Text style={styles.previewItemSub}>{item.event_date}{item.event_time ? " at " + item.event_time : ""}</Text>
+                      ? <Text style={styles.previewItemSub}>
+                          {item.event_date}{item.event_time ? " at " + item.event_time : ""}
+                        </Text>
                       : null}
                     {item.amount
-                      ? <Text style={styles.previewItemSub}>{item.amount}{item.due_date ? " — due " + item.due_date : ""}</Text>
+                      ? <Text style={styles.previewItemSub}>
+                          {item.amount}{item.due_date ? " — due " + item.due_date : ""}
+                        </Text>
                       : null}
                     <Text style={styles.previewItemType}>
                       {item.type === "event" ? "📅 Calendar event" : "📋 Action item"}
@@ -421,17 +424,15 @@ export default function TodayScreen() {
               ))}
             </ScrollView>
             <View style={{ flexDirection: "row", gap: 10, marginTop: 16 }}>
-              <TouchableOpacity
-                style={[styles.confirmBtn, { flex: 1 }]}
+              <TouchableOpacity style={[styles.confirmBtn, { flex: 1 }]}
                 onPress={() => confirmItems(previewItems)}>
                 <Text style={styles.confirmBtnText}>
                   Add {previewItems.filter(i => i.selected).length} item(s)
                 </Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.cancelPreviewBtn, { flex: 1 }]}
+              <TouchableOpacity style={[styles.cancelBtn, { flex: 1 }]}
                 onPress={() => setShowPreview(false)}>
-                <Text style={styles.cancelPreviewText}>Cancel</Text>
+                <Text style={styles.cancelBtnText}>Cancel</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -442,44 +443,86 @@ export default function TodayScreen() {
 }
 
 const styles = StyleSheet.create({
-  scroll:        { flex:1, backgroundColor:"#FFF8F0" },
-  content:       { padding:20, paddingBottom:40, paddingTop:60 },
-  center:        { flex:1, alignItems:"center", justifyContent:"center" },
-  header:        { flexDirection:"row", justifyContent:"space-between",
-                   alignItems:"flex-start", marginBottom:8 },
-  greeting:      { fontSize:26, fontWeight:"800", color:"#8B4513" },
-  date:          { fontSize:14, color:"#A0856B", marginTop:2 },
-  userTag:       { fontSize:12, color:"#E8734A", marginTop:4 },
-  signOutBtn:    { padding:8, backgroundColor:"#F5E6D3", borderRadius:20, marginTop:4 },
-  section:       { fontSize:11, fontWeight:"700", color:"#A0856B",
-                   letterSpacing:1.5, marginTop:20, marginBottom:10 },
-  emptyCard:     { backgroundColor:"#F0FFF4", borderRadius:12,
-                   padding:12, alignItems:"center", marginBottom:4 },
-  emptyText:     { color:"#4A9E6B", fontWeight:"600", fontSize:13 },
-  eventCard:     { backgroundColor:"#fff", borderRadius:14, padding:14,
-                   marginBottom:8, elevation:2 },
-  eventChild:    { fontSize:13, fontWeight:"700", color:"#E8734A" },
-  eventLabel:    { fontSize:15, fontWeight:"600", color:"#5C4033", marginTop:2 },
-  eventTime:     { fontSize:12, color:"#E8734A", marginTop:3, fontWeight:"600" },
-  statusCard:    { flexDirection:"row", backgroundColor:"#FFF0E8", borderRadius:12,
-                   padding:12, marginBottom:8, alignItems:"center",
-                   borderWidth:1.5, borderColor:"#E8734A" },
-  statusText:    { color:"#E8734A", fontWeight:"600", fontSize:14 },
-  replyCard:     { backgroundColor:"#F5E6D3", borderRadius:12,
-                   padding:14, marginBottom:12 },
-  replyText:     { color:"#5C4033", fontSize:14, lineHeight:20 },
-  dismiss:       { color:"#A0856B", fontSize:12, marginTop:8, alignSelf:"flex-end" },
-  chatRow:       { flexDirection:"row", gap:8, marginTop:8, alignItems:"center" },
-  input:         { flex:1, backgroundColor:"#fff", borderRadius:12, padding:14,
-                   fontSize:14, color:"#5C4033", borderWidth:1, borderColor:"#F5E6D3" },
+  scroll:          { flex: 1, backgroundColor: "#FFF8F0" },
+  content:         { padding: 20, paddingBottom: 40, paddingTop: 60 },
+  center:          { flex: 1, alignItems: "center", justifyContent: "center" },
+  header:          { flexDirection: "row", justifyContent: "space-between",
+                     alignItems: "flex-start", marginBottom: 8 },
+  greeting:        { fontSize: 26, fontWeight: "800", color: "#8B4513" },
+  date:            { fontSize: 14, color: "#A0856B", marginTop: 2 },
+  userTag:         { fontSize: 12, color: "#E8734A", marginTop: 4 },
+  signOutBtn:      { padding: 8, backgroundColor: "#F5E6D3",
+                     borderRadius: 20, marginTop: 4 },
+  section:         { fontSize: 11, fontWeight: "700", color: "#A0856B",
+                     letterSpacing: 1.5, marginTop: 20, marginBottom: 10 },
+  emptyCard:       { backgroundColor: "#F0FFF4", borderRadius: 12,
+                     padding: 12, alignItems: "center", marginBottom: 4 },
+  emptyText:       { color: "#4A9E6B", fontWeight: "600", fontSize: 13 },
+  eventCard:       { backgroundColor: "#fff", borderRadius: 14, padding: 14,
+                     marginBottom: 8, elevation: 2 },
+  eventChild:      { fontSize: 13, fontWeight: "700", color: "#E8734A" },
+  eventLabel:      { fontSize: 15, fontWeight: "600", color: "#5C4033", marginTop: 2 },
+  eventTime:       { fontSize: 12, color: "#E8734A", marginTop: 3, fontWeight: "600" },
+  statusCard:      { flexDirection: "row", backgroundColor: "#FFF0E8", borderRadius: 12,
+                     padding: 12, marginBottom: 8, alignItems: "center",
+                     borderWidth: 1.5, borderColor: "#E8734A" },
+  statusText:      { color: "#E8734A", fontWeight: "600", fontSize: 14 },
+  replyCard:       { backgroundColor: "#F5E6D3", borderRadius: 12,
+                     padding: 14, marginBottom: 12 },
+  replyText:       { color: "#5C4033", fontSize: 14, lineHeight: 20 },
+  dismiss:         { color: "#A0856B", fontSize: 12, marginTop: 8, alignSelf: "flex-end" },
 
-  micBtn:        { backgroundColor:"#FFF0E8", borderRadius:12, padding:13,
-                   justifyContent:"center", alignItems:"center",
-                   borderWidth:1.5, borderColor:"#E8734A" },
-  micBtnActive:  { backgroundColor:"#E8734A" },
-  sendBtn:       { backgroundColor:"#E8734A", borderRadius:12, padding:14,
-                   justifyContent:"center", alignItems:"center", width:48 },
-  sendText:      { color:"#fff", fontSize:18, fontWeight:"700" },
-  voiceHint:     { fontSize:11, color:"#C0A090", marginTop:8,
-                   textAlign:"center", fontStyle:"italic" },
+  // GPT-style input bar
+  inputBar:        { flexDirection: "row", alignItems: "flex-end",
+                     backgroundColor: "#fff", borderRadius: 24,
+                     borderWidth: 1, borderColor: "#E8E8E8",
+                     paddingHorizontal: 8, paddingVertical: 6,
+                     marginTop: 8, elevation: 2,
+                     shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 8 },
+  plusBtn:         { padding: 8, marginBottom: 2 },
+  inputField:      { flex: 1, fontSize: 15, color: "#333",
+                     paddingHorizontal: 4, paddingVertical: 8,
+                     maxHeight: 100 },
+  micBtn:          { padding: 8, marginBottom: 2 },
+  micBtnActive:    { backgroundColor: "#E8734A", borderRadius: 20 },
+  sendBtn:         { backgroundColor: "#E8734A", borderRadius: 20,
+                     width: 34, height: 34, alignItems: "center",
+                     justifyContent: "center", marginBottom: 2 },
+
+  // Plus sheet
+  sheetBackdrop:   { flex: 1, backgroundColor: "rgba(0,0,0,0.4)",
+                     justifyContent: "flex-end" },
+  sheet:           { backgroundColor: "#fff", borderTopLeftRadius: 24,
+                     borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
+  sheetHandle:     { width: 40, height: 4, backgroundColor: "#E0E0E0",
+                     borderRadius: 2, alignSelf: "center", marginBottom: 16 },
+  sheetTitle:      { fontSize: 16, fontWeight: "700", color: "#333",
+                     marginBottom: 20 },
+  sheetGrid:       { flexDirection: "row", gap: 16 },
+  sheetItem:       { alignItems: "center", gap: 8 },
+  sheetIconBox:    { width: 60, height: 60, borderRadius: 16,
+                     backgroundColor: "#F5F5F5", alignItems: "center",
+                     justifyContent: "center" },
+  sheetItemLabel:  { fontSize: 13, color: "#333", fontWeight: "500" },
+
+  // Preview modal
+  previewOverlay:  { flex: 1, backgroundColor: "rgba(0,0,0,0.5)",
+                     justifyContent: "flex-end" },
+  previewBox:      { backgroundColor: "#FFF8F0", borderTopLeftRadius: 24,
+                     borderTopRightRadius: 24, padding: 24, maxHeight: "85%" },
+  previewTitle:    { fontSize: 20, fontWeight: "800", color: "#8B4513" },
+  previewSubtitle: { fontSize: 13, color: "#A0856B", marginTop: 4, marginBottom: 16 },
+  previewItem:     { flexDirection: "row", alignItems: "flex-start",
+                     padding: 12, borderRadius: 12, marginBottom: 8,
+                     backgroundColor: "#fff", borderWidth: 1.5, borderColor: "#F5E6D3" },
+  previewItemSelected: { borderColor: "#4A9E6B", backgroundColor: "#F0FFF4" },
+  previewItemTitle:    { fontSize: 14, fontWeight: "700", color: "#5C4033" },
+  previewItemSub:      { fontSize: 12, color: "#A0856B", marginTop: 2 },
+  previewItemType:     { fontSize: 11, color: "#E8734A", marginTop: 4 },
+  confirmBtn:      { backgroundColor: "#E8734A", borderRadius: 12,
+                     paddingVertical: 14, alignItems: "center" },
+  confirmBtnText:  { color: "#fff", fontWeight: "700", fontSize: 15 },
+  cancelBtn:       { borderWidth: 1.5, borderColor: "#C0A090", borderRadius: 12,
+                     paddingVertical: 14, alignItems: "center" },
+  cancelBtnText:   { color: "#A0856B", fontWeight: "600", fontSize: 15 },
 });

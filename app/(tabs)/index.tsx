@@ -2,10 +2,12 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import {
   View, Text, ScrollView, TouchableOpacity,
   TextInput, ActivityIndicator, StyleSheet,
-  RefreshControl, Alert,
+  RefreshControl, Alert, Modal,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Audio } from "expo-av";
+import * as ImagePicker from "expo-image-picker";
+import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import { useAuth } from "@/app/_layout";
 import { API_BASE_URL } from "@/constants/config";
@@ -26,6 +28,10 @@ export default function TodayScreen() {
   const [refreshing,     setRefreshing]     = useState(false);
   const [chatLoading,    setChatLoading]    = useState(false);
   const [isRecording,    setIsRecording]    = useState(false);
+  const [showPlusMenu,   setShowPlusMenu]   = useState(false);
+  const [analyzing,      setAnalyzing]      = useState(false);
+  const [previewItems,   setPreviewItems]   = useState<any[]>([]);
+  const [showPreview,    setShowPreview]    = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
 
   const recordingRef    = useRef<Audio.Recording | null>(null);
@@ -94,6 +100,123 @@ export default function TodayScreen() {
     } catch (e: any) { Alert.alert("Error", String(e?.message || e)); }
   }
 
+  async function analyzeImage(base64: string, mimeType: string) {
+    setAnalyzing(true);
+    setShowPlusMenu(false);
+    try {
+      const res  = await fetch(`${API_BASE_URL}/analyze-image`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({
+          user_id:   USER_ID,
+          image:     base64,
+          mime_type: mimeType,
+        }),
+      });
+      const data = await res.json();
+      if (data.items && data.items.length > 0) {
+        setPreviewItems(data.items);
+        setShowPreview(true);
+      } else {
+        Alert.alert("Nothing found", "Could not extract any actionable items from this image.");
+      }
+    } catch (e: any) {
+      Alert.alert("Error", "Could not analyze image.");
+    } finally {
+      setAnalyzing(false);
+    }
+  }
+
+  async function handleCamera() {
+    setShowPlusMenu(false);
+    const { granted } = await ImagePicker.requestCameraPermissionsAsync();
+    if (!granted) {
+      Alert.alert("Permission needed", "Please allow camera access.");
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality:    0.7,
+      base64:     true,
+    });
+    if (!result.canceled && result.assets[0].base64) {
+      await analyzeImage(result.assets[0].base64, "image/jpeg");
+    }
+  }
+
+  async function handlePhotosFiles() {
+    setShowPlusMenu(false);
+    Alert.alert("Choose", "What would you like to pick?", [
+      { text: "Photo from library", onPress: async () => {
+        const result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          quality:    0.7,
+          base64:     true,
+        });
+        if (!result.canceled && result.assets[0].base64) {
+          await analyzeImage(result.assets[0].base64, "image/jpeg");
+        }
+      }},
+      { text: "PDF or document", onPress: async () => {
+        const result = await DocumentPicker.getDocumentAsync({
+          type: ["application/pdf", "image/*"],
+          copyToCacheDirectory: true,
+        });
+        if (result.canceled) return;
+        const file = result.assets[0];
+        // Read as base64
+        const { FileSystem } = require("expo-file-system/legacy");
+        const b64 = await FileSystem.readAsStringAsync(file.uri, { encoding: "base64" });
+        await analyzeImage(b64, file.mimeType || "application/pdf");
+      }},
+      { text: "Cancel", style: "cancel" },
+    ]);
+  }
+
+  async function confirmItems(confirmed: any[]) {
+    setShowPreview(false);
+    let added = 0;
+    for (const item of confirmed) {
+      if (!item.selected) continue;
+      try {
+        if (item.type === "event") {
+          await fetch(`${API_BASE_URL}/events`, {
+            method:  "POST",
+            headers: { "Content-Type": "application/json" },
+            body:    JSON.stringify({
+              user_id:    USER_ID,
+              child_name: item.child_name || "all",
+              event_type: item.event_type || "other",
+              event_date: item.event_date,
+              event_time: item.event_time || null,
+              notes:      item.notes || item.title,
+            }),
+          });
+        } else if (item.type === "task") {
+          await fetch(`${API_BASE_URL}/tasks`, {
+            method:  "POST",
+            headers: { "Content-Type": "application/json" },
+            body:    JSON.stringify({
+              user_id:       USER_ID,
+              task_type:     item.task_type || "bill",
+              title:         item.title,
+              due_date:      item.due_date || null,
+              amount:        item.amount || null,
+              payment_url:   item.payment_url || null,
+              contact_name:  item.contact_name || null,
+              draft_subject: item.draft_subject || null,
+              draft_body:    item.draft_body || null,
+              draft_to:      item.draft_to || null,
+            }),
+          });
+        }
+        added++;
+      } catch (e) { console.error(e); }
+    }
+    loadData();
+    Alert.alert("Done", added + " item(s) added successfully.");
+  }
+
   async function handleMicPress() {
     if (isRecording) await stopRecording();
     else await startRecording();
@@ -147,6 +270,7 @@ export default function TodayScreen() {
   );
 
   return (
+    <>
     <ScrollView style={styles.scroll} contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing}
         onRefresh={() => { setRefreshing(true); loadData(); }} />}>
@@ -208,6 +332,10 @@ export default function TodayScreen() {
         </View>
       ) : null}
       <View style={styles.chatRow}>
+        <TouchableOpacity style={styles.plusBtn}
+          onPress={() => setShowPlusMenu(true)}>
+          <Ionicons name="add" size={22} color="#E8734A" />
+        </TouchableOpacity>
         <TextInput style={styles.input}
           placeholder="Ask or speak a reminder..."
           placeholderTextColor="#A0856B"
@@ -233,6 +361,90 @@ export default function TodayScreen() {
         Tap 🎙️ → speak → auto-stops → tap → to send
       </Text>
     </ScrollView>
+
+      {/* Analyzing overlay */}
+      {analyzing && (
+        <View style={styles.analyzingOverlay}>
+          <ActivityIndicator size="large" color="#E8734A" />
+          <Text style={styles.analyzingText}>Analyzing with AI...</Text>
+        </View>
+      )}
+
+      {/* Plus menu */}
+      <Modal visible={showPlusMenu} transparent animationType="fade">
+        <TouchableOpacity style={styles.menuOverlay}
+          onPress={() => setShowPlusMenu(false)}>
+          <View style={styles.menuBox}>
+            <TouchableOpacity style={styles.menuItem} onPress={handleCamera}>
+              <Ionicons name="camera" size={24} color="#E8734A" />
+              <Text style={styles.menuItemText}>Camera</Text>
+            </TouchableOpacity>
+            <View style={styles.menuDivider} />
+            <TouchableOpacity style={styles.menuItem} onPress={handlePhotosFiles}>
+              <Ionicons name="image" size={24} color="#E8734A" />
+              <Text style={styles.menuItemText}>Photos & Files</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Preview modal */}
+      <Modal visible={showPreview} transparent animationType="slide">
+        <View style={styles.previewOverlay}>
+          <View style={styles.previewBox}>
+            <Text style={styles.previewTitle}>Review extracted items</Text>
+            <Text style={styles.previewSubtitle}>
+              Select items to add to Hearth
+            </Text>
+            <ScrollView style={{ maxHeight: 360 }}>
+              {previewItems.map((item, i) => (
+                <TouchableOpacity key={i} style={[
+                  styles.previewItem,
+                  item.selected && styles.previewItemSelected
+                ]} onPress={() => {
+                  const updated = [...previewItems];
+                  updated[i].selected = !updated[i].selected;
+                  setPreviewItems(updated);
+                }}>
+                  <View style={styles.previewCheckbox}>
+                    {item.selected
+                      ? <Ionicons name="checkmark-circle" size={22} color="#4A9E6B" />
+                      : <Ionicons name="ellipse-outline" size={22} color="#C0A090" />
+                    }
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.previewItemTitle}>{item.title}</Text>
+                    {item.event_date
+                      ? <Text style={styles.previewItemSub}>{item.event_date}{item.event_time ? " at " + item.event_time : ""}</Text>
+                      : null}
+                    {item.amount
+                      ? <Text style={styles.previewItemSub}>{item.amount}{item.due_date ? " — due " + item.due_date : ""}</Text>
+                      : null}
+                    <Text style={styles.previewItemType}>
+                      {item.type === "event" ? "📅 Calendar event" : "📋 Action item"}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <View style={{ flexDirection: "row", gap: 10, marginTop: 16 }}>
+              <TouchableOpacity
+                style={[styles.confirmBtn, { flex: 1 }]}
+                onPress={() => confirmItems(previewItems)}>
+                <Text style={styles.confirmBtnText}>
+                  Add {previewItems.filter(i => i.selected).length} item(s)
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.cancelPreviewBtn, { flex: 1 }]}
+                onPress={() => setShowPreview(false)}>
+                <Text style={styles.cancelPreviewText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 }
 

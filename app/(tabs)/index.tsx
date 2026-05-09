@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import {
   View, Text, ScrollView, TouchableOpacity,
   TextInput, ActivityIndicator, StyleSheet,
-  RefreshControl, Alert, Modal,
+  RefreshControl, Alert, Modal, KeyboardAvoidingView, Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Audio } from "expo-av";
@@ -250,6 +250,9 @@ export default function TodayScreen() {
   );
 
   return (
+    <KeyboardAvoidingView style={{ flex: 1 }}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={90}>
     <>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing}
@@ -439,6 +442,7 @@ export default function TodayScreen() {
         </View>
       </Modal>
     </>
+    </KeyboardAvoidingView>
   );
 }
 

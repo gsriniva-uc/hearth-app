@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useFocusEffect } from "@react-navigation/native";
 import {
   View, Text, ScrollView, TouchableOpacity,
   RefreshControl, StyleSheet, ActivityIndicator,
@@ -43,6 +44,11 @@ export default function WeekScreen() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Refresh every time user navigates to this tab
+  useFocusEffect(
+    useCallback(() => { load(); }, [load])
+  );
+
   const grouped = events.reduce<Record<string, any[]>>((acc, ev) => {
     if (!acc[ev.event_date]) acc[ev.event_date] = [];
     acc[ev.event_date].push(ev);
@@ -54,7 +60,7 @@ export default function WeekScreen() {
       refreshControl={<RefreshControl refreshing={refreshing}
         onRefresh={() => { setRefreshing(true); load(); }} />}>
 
-      <Text style={styles.title}>Upcoming Events</Text>
+      <Text style={styles.title}>✨ Coming Up</Text>
 
       <View style={styles.windowRow}>
         {WINDOWS.map(d => (

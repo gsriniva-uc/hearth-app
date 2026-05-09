@@ -17,7 +17,7 @@ export default function TabLayout() {
           tabBarIcon: ({ color, size }) =>
             <Ionicons name="home" size={size} color={color} /> }} />
       <Tabs.Screen name="week"
-        options={{ title:"This Week",
+        options={{ title:"Upcoming",
           tabBarIcon: ({ color, size }) =>
             <Ionicons name="calendar" size={size} color={color} /> }} />
       <Tabs.Screen name="tasks"

@@ -10,6 +10,8 @@ import * as FileSystem from "expo-file-system/legacy";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import { useAuth } from "@/app/_layout";
+import { useRouter } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_BASE_URL } from "@/constants/config";
 
 const SCHOOL_TYPES  = ["dress_down_day","early_dismissal","recital","field_trip",
@@ -21,7 +23,12 @@ export default function TodayScreen() {
   const { user, signOut } = useAuth();
   const USER_ID = user?.user_id || "";
 
+  const router = useRouter();
   const [todayEvents,    setTodayEvents]    = useState<any[]>([]);
+  const [showWalkthrough, setShowWalkthrough] = useState(false);
+  const [walkthroughStep, setWalkthroughStep] = useState(0);
+  const [checklistDone,   setChecklistDone]   = useState({ child: false, scan: false });
+  const [showChecklist,   setShowChecklist]   = useState(false);
   const [chatInput,      setChatInput]      = useState("");
   const [chatReply,      setChatReply]      = useState("");
   const [loading,        setLoading]        = useState(true);
@@ -48,6 +55,38 @@ export default function TodayScreen() {
   }, [USER_ID]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  useEffect(() => {
+    async function checkOnboarding() {
+      if (!USER_ID) return;
+      try {
+        const done = await AsyncStorage.getItem("walkthrough_done_" + USER_ID);
+        if (!done) {
+          setShowWalkthrough(true);
+        }
+        // Check checklist status
+        const profilesRes = await fetch(`${API_BASE_URL}/profiles?user_id=${USER_ID}`);
+        const profiles    = await profilesRes.json();
+        const hasChild    = Array.isArray(profiles) && profiles.length > 0;
+        const eventsRes   = await fetch(`${API_BASE_URL}/events?user_id=${USER_ID}&days_ahead=60`);
+        const events      = await eventsRes.json();
+        const hasScanned  = Array.isArray(events) && events.length > 0;
+        setChecklistDone({ child: hasChild, scan: hasScanned });
+        setShowChecklist(!hasChild || !hasScanned);
+      } catch (e) { console.error(e); }
+    }
+    checkOnboarding();
+  }, [USER_ID]);
+
+  async function dismissWalkthrough() {
+    await AsyncStorage.setItem("walkthrough_done_" + USER_ID, "true");
+    setShowWalkthrough(false);
+  }
+
+  function nextStep() {
+    if (walkthroughStep < 3) setWalkthroughStep(walkthroughStep + 1);
+    else dismissWalkthrough();
+  }
 
   // ── Recording ──────────────────────────────────────────────────────────────
   async function startRecording() {
@@ -272,6 +311,43 @@ export default function TodayScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Checklist */}
+        {showChecklist && (
+          <View style={styles.checklistCard}>
+            <Text style={styles.checklistTitle}>🚀 Get started with Hearth</Text>
+            <Text style={styles.checklistSub}>
+              {[checklistDone.child, checklistDone.scan].filter(Boolean).length + 1} of 3 steps complete
+            </Text>
+            <View style={styles.checkItem}>
+              <View style={[styles.checkCircle, styles.checkDone]}>
+                <Text style={styles.checkMark}>✓</Text>
+              </View>
+              <Text style={styles.checkText}>Sign in with Google</Text>
+            </View>
+            <TouchableOpacity style={styles.checkItem}
+              onPress={() => !checklistDone.child && router.push("/(tabs)/profile")}>
+              <View style={[styles.checkCircle, checklistDone.child && styles.checkDone]}>
+                {checklistDone.child && <Text style={styles.checkMark}>✓</Text>}
+              </View>
+              <Text style={styles.checkText}>Add a child</Text>
+              {!checklistDone.child && <Text style={styles.checkArrow}>→ Family</Text>}
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.checkItem, { borderBottomWidth: 0 }]}
+              onPress={() => !checklistDone.scan && router.push("/(tabs)/profile")}>
+              <View style={[styles.checkCircle, checklistDone.scan && styles.checkDone]}>
+                {checklistDone.scan && <Text style={styles.checkMark}>✓</Text>}
+              </View>
+              <Text style={styles.checkText}>Run your first scan</Text>
+              {!checklistDone.scan && <Text style={styles.checkArrow}>→ Family</Text>}
+            </TouchableOpacity>
+            <View style={styles.progressBar}>
+              <View style={[styles.progressFill, {
+                width: (([checklistDone.child, checklistDone.scan].filter(Boolean).length + 1) / 3 * 100) + "%"
+              }]} />
+            </View>
+          </View>
+        )}
+
         {/* School */}
         <Text style={styles.section}>🏫 SCHOOL & ACTIVITIES</Text>
         {schoolEvents.length === 0
@@ -359,6 +435,84 @@ export default function TodayScreen() {
         </View>
 
       </ScrollView>
+
+      {/* Walkthrough modal */}
+      <Modal visible={showWalkthrough} transparent animationType="fade">
+        <View style={styles.walkthroughOverlay}>
+          <View style={styles.walkthroughCard}>
+            <View style={styles.walkthroughHandle} />
+            <View style={styles.dotRow}>
+              {[0,1,2,3].map(i => (
+                <View key={i} style={[styles.dot, walkthroughStep === i && styles.dotActive]} />
+              ))}
+            </View>
+            {walkthroughStep === 0 && <>
+              <Text style={styles.wtEmoji}>🏠</Text>
+              <Text style={styles.wtTitle}>Welcome to Hearth</Text>
+              <Text style={styles.wtBody}>
+                Your family's concierge — managing school events, bills, and appointments all in one place.
+              </Text>
+              <TouchableOpacity style={styles.wtPrimary} onPress={nextStep}>
+                <Text style={styles.wtPrimaryText}>Get started →</Text>
+              </TouchableOpacity>
+            </>}
+            {walkthroughStep === 1 && <>
+              <Text style={styles.wtEmoji}>👧</Text>
+              <Text style={styles.wtTitle}>Who are we looking after?</Text>
+              <Text style={styles.wtBody}>Add your children so Hearth knows whose events to track in Gmail.</Text>
+              <View style={styles.wtTips}>
+                <Text style={styles.wtTip}>→  Family tab → Add a child</Text>
+                <Text style={styles.wtTip}>→  Enter name and grade</Text>
+              </View>
+              <View style={styles.wtBtnRow}>
+                <TouchableOpacity style={styles.wtGhost} onPress={nextStep}>
+                  <Text style={styles.wtGhostText}>Skip</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.wtPrimary} onPress={nextStep}>
+                  <Text style={styles.wtPrimaryText}>Next →</Text>
+                </TouchableOpacity>
+              </View>
+            </>}
+            {walkthroughStep === 2 && <>
+              <Text style={styles.wtEmoji}>📧</Text>
+              <Text style={styles.wtTitle}>Connect partner's Gmail</Text>
+              <Text style={styles.wtBody}>Scan both inboxes. Partner approves once in browser — no app needed. Optional.</Text>
+              <View style={styles.wtTips}>
+                <Text style={styles.wtTip}>→  Family tab → Add family Gmail</Text>
+                <Text style={styles.wtTip}>→  Share link — partner approves</Text>
+              </View>
+              <View style={styles.wtBtnRow}>
+                <TouchableOpacity style={styles.wtGhost} onPress={nextStep}>
+                  <Text style={styles.wtGhostText}>Skip</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.wtPrimary} onPress={nextStep}>
+                  <Text style={styles.wtPrimaryText}>Next →</Text>
+                </TouchableOpacity>
+              </View>
+            </>}
+            {walkthroughStep === 3 && <>
+              <Text style={styles.wtEmoji}>🔍</Text>
+              <Text style={styles.wtTitle}>Run your first scan</Text>
+              <Text style={styles.wtBody}>Hearth scans Gmail and Google Calendar for events, bills and appointments.</Text>
+              <View style={styles.wtTips}>
+                <Text style={styles.wtTip}>→  Family tab → Scan Gmail + Calendar</Text>
+                <Text style={styles.wtTip}>→  Events appear in Upcoming tab</Text>
+              </View>
+              <View style={styles.wtBtnRow}>
+                <TouchableOpacity style={styles.wtGhost} onPress={dismissWalkthrough}>
+                  <Text style={styles.wtGhostText}>Skip</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.wtPrimary} onPress={() => {
+                  dismissWalkthrough();
+                  router.push("/(tabs)/profile");
+                }}>
+                  <Text style={styles.wtPrimaryText}>Go to Family →</Text>
+                </TouchableOpacity>
+              </View>
+            </>}
+          </View>
+        </View>
+      </Modal>
 
       {/* Plus sheet — GPT style bottom panel */}
       <Modal visible={showPlusSheet} transparent animationType="slide">
@@ -531,4 +685,45 @@ const styles = StyleSheet.create({
   cancelBtn:       { borderWidth: 1.5, borderColor: "#C0A090", borderRadius: 12,
                      paddingVertical: 14, alignItems: "center" },
   cancelBtnText:   { color: "#A0856B", fontWeight: "600", fontSize: 15 },
+
+  // Checklist
+  checklistCard:  { backgroundColor: "#fff", borderRadius: 16, padding: 14,
+                    marginBottom: 16, borderWidth: 1, borderColor: "#F5E6D3", elevation: 2 },
+  checklistTitle: { fontSize: 14, fontWeight: "700", color: "#8B4513", marginBottom: 2 },
+  checklistSub:   { fontSize: 12, color: "#A0856B", marginBottom: 10 },
+  checkItem:      { flexDirection: "row", alignItems: "center", gap: 10,
+                    paddingVertical: 8, borderBottomWidth: 0.5, borderBottomColor: "#F5E6D3" },
+  checkCircle:    { width: 20, height: 20, borderRadius: 10, borderWidth: 1.5,
+                    borderColor: "#E8734A", alignItems: "center", justifyContent: "center" },
+  checkDone:      { backgroundColor: "#E8734A" },
+  checkMark:      { color: "#fff", fontSize: 11, fontWeight: "700" },
+  checkText:      { flex: 1, fontSize: 13, color: "#5C4033" },
+  checkArrow:     { fontSize: 11, color: "#E8734A", fontWeight: "600" },
+  progressBar:    { height: 4, backgroundColor: "#F5E6D3", borderRadius: 2, marginTop: 12 },
+  progressFill:   { height: 4, backgroundColor: "#E8734A", borderRadius: 2 },
+
+  // Walkthrough
+  walkthroughOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)",
+                        alignItems: "center", justifyContent: "center", padding: 24 },
+  walkthroughCard:    { backgroundColor: "#F2F2F2", borderRadius: 24,
+                        padding: 20, width: "100%" },
+  walkthroughHandle:  { width: 36, height: 4, backgroundColor: "#C0C0C0",
+                        borderRadius: 2, alignSelf: "center", marginBottom: 14 },
+  dotRow:        { flexDirection: "row", gap: 6, justifyContent: "center", marginBottom: 14 },
+  dot:           { width: 6, height: 6, borderRadius: 3, backgroundColor: "#D0D0D0" },
+  dotActive:     { width: 18, borderRadius: 3, backgroundColor: "#E8734A" },
+  wtEmoji:       { fontSize: 36, textAlign: "center", marginBottom: 8 },
+  wtTitle:       { fontSize: 18, fontWeight: "700", color: "#333",
+                   textAlign: "center", marginBottom: 8 },
+  wtBody:        { fontSize: 14, color: "#666", textAlign: "center",
+                   lineHeight: 20, marginBottom: 14 },
+  wtTips:        { backgroundColor: "#fff", borderRadius: 12, padding: 12, marginBottom: 14 },
+  wtTip:         { fontSize: 13, color: "#5C4033", lineHeight: 22 },
+  wtBtnRow:      { flexDirection: "row", gap: 10 },
+  wtPrimary:     { flex: 1, backgroundColor: "#E8734A", borderRadius: 14,
+                   paddingVertical: 12, alignItems: "center" },
+  wtPrimaryText: { color: "#fff", fontWeight: "700", fontSize: 15 },
+  wtGhost:       { flex: 1, borderWidth: 1, borderColor: "#D0D0D0", borderRadius: 14,
+                   paddingVertical: 12, alignItems: "center" },
+  wtGhostText:   { color: "#999", fontSize: 15 },
 });

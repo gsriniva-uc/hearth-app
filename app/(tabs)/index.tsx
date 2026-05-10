@@ -214,9 +214,11 @@ export default function TodayScreen() {
       const data = await res.json();
       setChatReply(data.response || "");
       setChatInput("");
-      setTimeout(() => loadData(), 500);
+      // Refresh immediately and again after 2s to catch slow saves
+      loadData();
+      setTimeout(() => loadData(), 2000);
       if ((data.response || "").includes("✅"))
-        setTimeout(() => setChatReply(""), 4000);
+        setTimeout(() => setChatReply(""), 5000);
     } catch { Alert.alert("Error", "Could not reach Hearth."); }
     finally { setChatLoading(false); }
   }

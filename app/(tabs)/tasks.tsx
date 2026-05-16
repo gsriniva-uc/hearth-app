@@ -1,11 +1,15 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View, Text, ScrollView, TouchableOpacity,
   StyleSheet, Alert, Linking, RefreshControl,
   ActivityIndicator, Modal, TextInput,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { Audio } from "expo-av";
 import { useAuth } from "@/app/_layout";
+import * as ImagePicker from "expo-image-picker";
+import * as DocumentPicker from "expo-document-picker";
+import * as FileSystem from "expo-file-system/legacy";
 import { API_BASE_URL } from "@/constants/config";
 
 interface Task {
@@ -38,6 +42,14 @@ export default function ActionsScreen() {
   const [editTo,     setEditTo]     = useState("");
   const [editSubject,setEditSubject]= useState("");
   const [sending,    setSending]    = useState<number | null>(null);
+  const [chatInput,   setChatInput]   = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const [patternPreview, setPatternPreview] = useState<any | null>(null);
+  const [showPatternPreview, setShowPatternPreview] = useState(false);
+  const [isRecording,  setIsRecording]  = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [showPlusSheet, setShowPlusSheet] = useState(false);
+  const recordingRef = useRef<any>(null);
 
   const load = useCallback(async () => {
     if (!USER_ID) { setLoading(false); return; }
@@ -151,6 +163,116 @@ export default function ActionsScreen() {
   const bills     = tasks.filter(t => t.task_type === "bill");
   const drafts    = tasks.filter(t => t.task_type === "draft");
   const followups = tasks.filter(t => t.task_type === "followup");
+
+  // ── Voice recording ───────────────────────────────────────────────────────
+  async function startRecording() {
+    try {
+      const { granted } = await Audio.requestPermissionsAsync();
+      if (!granted) { Alert.alert("Permission needed", "Please allow microphone access."); return; }
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+      const { recording } = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY);
+      recordingRef.current = recording;
+      setIsRecording(true);
+    } catch { Alert.alert("Error", "Could not start recording."); }
+  }
+
+  async function stopRecording() {
+    if (!recordingRef.current) return;
+    setIsRecording(false);
+    setIsTranscribing(true);
+    try {
+      await recordingRef.current.stopAndUnloadAsync();
+      const uri = recordingRef.current.getURI();
+      recordingRef.current = null;
+      if (uri) {
+        const b64 = await FileSystem.readAsStringAsync(uri, { encoding: "base64" });
+        const res = await fetch(`${API_BASE_URL}/transcribe?user_id=${USER_ID}`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ audio: b64 }),
+        });
+        const data = await res.json();
+        if (data.transcript) setChatInput(data.transcript);
+      }
+    } catch (e) { console.error(e); }
+    finally { setIsTranscribing(false); }
+  }
+
+  async function handleMicPress() {
+    if (isRecording) await stopRecording();
+    else await startRecording();
+  }
+
+  async function handleCamera() {
+    setShowPlusSheet(false);
+    const { granted } = await ImagePicker.requestCameraPermissionsAsync();
+    if (!granted) return;
+    const result = await ImagePicker.launchCameraAsync({ mediaTypes: ["images"], quality: 0.7, base64: true });
+    if (!result.canceled && result.assets[0]?.base64) {
+      await analyzeForPattern(result.assets[0].base64, "image/jpeg");
+    }
+  }
+
+  async function handlePhotos() {
+    setShowPlusSheet(false);
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.7, base64: true });
+    if (!result.canceled && result.assets[0]?.base64) {
+      await analyzeForPattern(result.assets[0].base64, "image/jpeg");
+    }
+  }
+
+  async function analyzeForPattern(base64: string, mimeType: string) {
+    setShowPlusSheet(false);
+    setChatLoading(true);
+    try {
+      const res  = await fetch(`${API_BASE_URL}/analyze-pattern`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: USER_ID, image: base64, mime_type: mimeType }),
+      });
+      const data = await res.json();
+      if (data.pattern) {
+        setPatternPreview(data.pattern);
+        setShowPatternPreview(true);
+      } else {
+        Alert.alert("Nothing found", "Could not extract a reminder pattern from this image.");
+      }
+    } catch { Alert.alert("Error", "Could not analyze image."); }
+    finally { setChatLoading(false); }
+  }
+
+  async function handlePatternChat() {
+    if (!chatInput.trim()) return;
+    setChatLoading(true);
+    try {
+      const res  = await fetch(`${API_BASE_URL}/parse-pattern`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: USER_ID, text: chatInput.trim() }),
+      });
+      const data = await res.json();
+      if (data.pattern) {
+        setPatternPreview(data.pattern);
+        setShowPatternPreview(true);
+        setChatInput("");
+      } else {
+        Alert.alert("Could not understand", "Try: 'Remind me to refill Emma\'s prescription with CVS every 30 days'");
+      }
+    } catch { Alert.alert("Error", "Could not process request."); }
+    finally { setChatLoading(false); }
+  }
+
+  async function confirmPattern() {
+    if (!patternPreview) return;
+    try {
+      await fetch(`${API_BASE_URL}/patterns/manual`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: USER_ID, ...patternPreview }),
+      });
+      setShowPatternPreview(false);
+      setPatternPreview(null);
+      load();
+      Alert.alert("Saved", "Reminder pattern added. Draft will appear when due.");
+    } catch { Alert.alert("Error", "Could not save pattern."); }
+  }
 
   const TaskCard = ({ task, section }: { task: Task; section: string }) => {
     const isExpanded = expandedId === task.id;
@@ -302,7 +424,131 @@ export default function ActionsScreen() {
           </View>
         ) : followups.map(t => <TaskCard key={t.id} task={t} section="followup" />)}
 
+        {/* Add Pattern Chat Bar */}
+        <Text style={styles.section}>➕ ADD REMINDER PATTERN</Text>
+        <View style={styles.inputBar}>
+          <TouchableOpacity style={styles.plusBtn}
+            onPress={() => setShowPlusSheet(true)}>
+            <Ionicons name="add" size={22} color="#666" />
+          </TouchableOpacity>
+          <TextInput
+            style={styles.inputField}
+            placeholder="e.g. Remind me to refill Emma's Adderall with CVS every 30 days..."
+            placeholderTextColor="#A0856B"
+            value={chatInput}
+            onChangeText={setChatInput}
+            onSubmitEditing={handlePatternChat}
+            returnKeyType="send"
+            multiline
+          />
+          <TouchableOpacity style={styles.micBtn}
+            onPress={handleMicPress} disabled={isTranscribing}>
+            {isTranscribing
+              ? <ActivityIndicator size="small" color="#E8734A" />
+              : <Ionicons name={isRecording ? "stop-circle" : "mic"}
+                  size={20} color={isRecording ? "#E8734A" : "#666"} />}
+          </TouchableOpacity>
+          {chatInput.trim() ? (
+            <TouchableOpacity style={styles.sendBtn}
+              onPress={handlePatternChat} disabled={chatLoading}>
+              {chatLoading
+                ? <ActivityIndicator size="small" color="#fff" />
+                : <Ionicons name="arrow-up" size={18} color="#fff" />}
+            </TouchableOpacity>
+          ) : null}
+        </View>
+        <Text style={styles.voiceHint}>
+          Tap 🎙️ to speak or type a reminder pattern
+        </Text>
+
       </ScrollView>
+
+      {/* Plus sheet */}
+      <Modal visible={showPlusSheet} transparent animationType="slide">
+        <TouchableOpacity style={styles.sheetBackdrop}
+          onPress={() => setShowPlusSheet(false)} activeOpacity={1}>
+          <View style={styles.sheet}>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.sheetTitle}>Add from image</Text>
+            <View style={styles.sheetGrid}>
+              <TouchableOpacity style={styles.sheetItem} onPress={handleCamera}>
+                <View style={styles.sheetIconBox}>
+                  <Ionicons name="camera" size={28} color="#5C4033" />
+                </View>
+                <Text style={styles.sheetItemLabel}>Camera</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.sheetItem} onPress={handlePhotos}>
+                <View style={styles.sheetIconBox}>
+                  <Ionicons name="image" size={28} color="#5C4033" />
+                </View>
+                <Text style={styles.sheetItemLabel}>Photos</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.sheetItem} onPress={async () => {
+                setShowPlusSheet(false);
+                const result = await DocumentPicker.getDocumentAsync({
+                  type: ["application/pdf","image/*"], copyToCacheDirectory: true });
+                if (!result.canceled) {
+                  const file = result.assets[0];
+                  const b64  = await FileSystem.readAsStringAsync(file.uri, { encoding: "base64" });
+                  await analyzeForPattern(b64, file.mimeType || "application/pdf");
+                }
+              }}>
+                <View style={styles.sheetIconBox}>
+                  <Ionicons name="document-attach" size={28} color="#5C4033" />
+                </View>
+                <Text style={styles.sheetItemLabel}>Files</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Pattern preview modal */}
+      <Modal visible={showPatternPreview} transparent animationType="slide">
+        <View style={styles.previewOverlay}>
+          <View style={styles.previewBox}>
+            <Text style={styles.previewTitle}>Does this look right?</Text>
+            {patternPreview && (
+              <View style={styles.previewContent}>
+                <View style={styles.previewRow}>
+                  <Text style={styles.previewLabel}>Type</Text>
+                  <Text style={styles.previewValue}>{patternPreview.pattern_type}</Text>
+                </View>
+                <View style={styles.previewRow}>
+                  <Text style={styles.previewLabel}>For</Text>
+                  <Text style={styles.previewValue}>{patternPreview.child_name || "Family"}</Text>
+                </View>
+                <View style={styles.previewRow}>
+                  <Text style={styles.previewLabel}>Contact</Text>
+                  <Text style={styles.previewValue}>{patternPreview.contact_name || "—"}</Text>
+                </View>
+                <View style={styles.previewRow}>
+                  <Text style={styles.previewLabel}>Email</Text>
+                  <Text style={styles.previewValue}>{patternPreview.contact_email || "—"}</Text>
+                </View>
+                <View style={styles.previewRow}>
+                  <Text style={styles.previewLabel}>Every</Text>
+                  <Text style={styles.previewValue}>{patternPreview.frequency_days} days</Text>
+                </View>
+                <View style={[styles.previewRow, { borderBottomWidth: 0 }]}>
+                  <Text style={styles.previewLabel}>Notes</Text>
+                  <Text style={styles.previewValue}>{patternPreview.keywords || "—"}</Text>
+                </View>
+              </View>
+            )}
+            <View style={{ flexDirection: "row", gap: 10, marginTop: 16 }}>
+              <TouchableOpacity style={[styles.confirmBtn, { flex: 1 }]}
+                onPress={confirmPattern}>
+                <Text style={styles.confirmBtnText}>Save Pattern</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.cancelPreviewBtn, { flex: 1 }]}
+                onPress={() => setShowPatternPreview(false)}>
+                <Text style={styles.cancelPreviewText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <Modal visible={!!editTask} transparent animationType="slide">
         <View style={styles.modalOverlay}>
@@ -394,4 +640,52 @@ const styles = StyleSheet.create({
                    fontSize: 14, color: "#5C4033", borderWidth: 1,
                    borderColor: "#F5E6D3", marginBottom: 10 },
   inputMulti:    { height: 120 },
+
+  // Chat bar
+  inputBar:      { flexDirection: "row", alignItems: "flex-end",
+                   backgroundColor: "#fff", borderRadius: 24,
+                   borderWidth: 1, borderColor: "#E8E8E8",
+                   paddingHorizontal: 8, paddingVertical: 6,
+                   marginTop: 8, elevation: 2 },
+  plusBtn:       { padding: 8, marginBottom: 2 },
+  inputField:    { flex: 1, fontSize: 14, color: "#333",
+                   paddingHorizontal: 4, paddingVertical: 8, maxHeight: 80 },
+  micBtn:        { padding: 8, marginBottom: 2 },
+  sendBtn:       { backgroundColor: "#E8734A", borderRadius: 20,
+                   width: 34, height: 34, alignItems: "center",
+                   justifyContent: "center", marginBottom: 2 },
+  voiceHint:     { fontSize: 11, color: "#C0A090", marginTop: 6,
+                   textAlign: "center", fontStyle: "italic" },
+
+  // Plus sheet
+  sheetBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
+  sheet:         { backgroundColor: "#fff", borderTopLeftRadius: 24,
+                   borderTopRightRadius: 24, padding: 24, paddingBottom: 60, minHeight: 240 },
+  sheetHandle:   { width: 40, height: 4, backgroundColor: "#E0E0E0",
+                   borderRadius: 2, alignSelf: "center", marginBottom: 16 },
+  sheetTitle:    { fontSize: 16, fontWeight: "700", color: "#333", marginBottom: 20 },
+  sheetGrid:     { flexDirection: "row", gap: 16 },
+  sheetItem:     { alignItems: "center", gap: 8 },
+  sheetIconBox:  { width: 60, height: 60, borderRadius: 16,
+                   backgroundColor: "#F5F5F5", alignItems: "center",
+                   justifyContent: "center" },
+  sheetItemLabel:{ fontSize: 13, color: "#333", fontWeight: "500" },
+
+  // Pattern preview
+  previewOverlay:  { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
+  previewBox:      { backgroundColor: "#FFF8F0", borderTopLeftRadius: 24,
+                     borderTopRightRadius: 24, padding: 24 },
+  previewTitle:    { fontSize: 18, fontWeight: "800", color: "#8B4513", marginBottom: 16 },
+  previewContent:  { backgroundColor: "#fff", borderRadius: 14, overflow: "hidden",
+                     borderWidth: 1, borderColor: "#F5E6D3" },
+  previewRow:      { flexDirection: "row", padding: 12,
+                     borderBottomWidth: 0.5, borderBottomColor: "#F5E6D3" },
+  previewLabel:    { width: 70, fontSize: 13, color: "#A0856B", fontWeight: "600" },
+  previewValue:    { flex: 1, fontSize: 13, color: "#5C4033" },
+  confirmBtn:      { backgroundColor: "#E8734A", borderRadius: 12,
+                     paddingVertical: 14, alignItems: "center" },
+  confirmBtnText:  { color: "#fff", fontWeight: "700", fontSize: 15 },
+  cancelPreviewBtn:{ borderWidth: 1.5, borderColor: "#C0A090", borderRadius: 12,
+                     paddingVertical: 14, alignItems: "center" },
+  cancelPreviewText:{ color: "#A0856B", fontWeight: "600", fontSize: 15 },
 });

@@ -430,6 +430,9 @@ export default function TodayScreen() {
             </TouchableOpacity>
           ) : null}
         </View>
+        <Text style={styles.voiceHint}>
+          Tap 🎙️ to speak a reminder or type and tap → to send
+        </Text>
 
       </ScrollView>
 
@@ -689,6 +692,8 @@ const styles = StyleSheet.create({
   cancelBtn:       { borderWidth: 1.5, borderColor: "#C0A090", borderRadius: 12,
                      paddingVertical: 14, alignItems: "center" },
   cancelBtnText:   { color: "#A0856B", fontWeight: "600", fontSize: 15 },
+  voiceHint:       { fontSize: 11, color: "#C0A090", marginTop: 6,
+                     textAlign: "center", fontStyle: "italic", marginBottom: 8 },
 
   // Checklist
   checklistCard:  { backgroundColor: "#fff", borderRadius: 16, padding: 14,

@@ -437,6 +437,7 @@ export default function TodayScreen() {
       <Modal visible={showWalkthrough} transparent animationType="fade">
         <View style={styles.walkthroughOverlay}>
           <View style={styles.walkthroughCard}>
+            <ScrollView showsVerticalScrollIndicator={false}>
             <View style={styles.walkthroughHandle} />
             <View style={styles.dotRow}>
               {[0,1,2,3].map(i => (
@@ -512,6 +513,7 @@ export default function TodayScreen() {
                 </TouchableOpacity>
               </View>
             </>}
+          </ScrollView>
           </View>
         </View>
       </Modal>
@@ -708,7 +710,8 @@ const styles = StyleSheet.create({
   walkthroughOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)",
                         alignItems: "center", justifyContent: "center", padding: 24 },
   walkthroughCard:    { backgroundColor: "#F2F2F2", borderRadius: 24,
-                        padding: 20, paddingBottom: 28, width: "100%" },
+                        padding: 20, paddingBottom: 28, width: "100%",
+                        maxHeight: "75%" },
   walkthroughHandle:  { width: 36, height: 4, backgroundColor: "#C0C0C0",
                         borderRadius: 2, alignSelf: "center", marginBottom: 14 },
   dotRow:        { flexDirection: "row", gap: 6, justifyContent: "center", marginBottom: 14 },

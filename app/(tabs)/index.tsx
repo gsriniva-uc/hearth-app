@@ -449,8 +449,9 @@ export default function TodayScreen() {
               <Text style={styles.wtBody}>
                 Your family's concierge — managing school events, bills, and appointments all in one place.
               </Text>
-              <TouchableOpacity style={styles.wtPrimary} onPress={nextStep}>
-                <Text style={styles.wtPrimaryText}>Get started →</Text>
+              <TouchableOpacity style={styles.wtPrimary}
+                onPress={() => setWalkthroughStep(1)}>
+                <Text style={[styles.wtPrimaryText, { color: "#fff" }]}>Get started →</Text>
               </TouchableOpacity>
             </>}
             {walkthroughStep === 1 && <>
@@ -462,11 +463,13 @@ export default function TodayScreen() {
                 <Text style={styles.wtTip}>→  Enter name and grade</Text>
               </View>
               <View style={styles.wtBtnRow}>
-                <TouchableOpacity style={styles.wtGhost} onPress={nextStep}>
+                <TouchableOpacity style={styles.wtGhost}
+                  onPress={() => setWalkthroughStep(2)}>
                   <Text style={styles.wtGhostText}>Skip</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.wtPrimary} onPress={nextStep}>
-                  <Text style={styles.wtPrimaryText}>Next →</Text>
+                <TouchableOpacity style={styles.wtPrimary}
+                  onPress={() => setWalkthroughStep(2)}>
+                  <Text style={[styles.wtPrimaryText, { color: "#fff" }]}>Next →</Text>
                 </TouchableOpacity>
               </View>
             </>}
@@ -479,11 +482,13 @@ export default function TodayScreen() {
                 <Text style={styles.wtTip}>→  Share link — partner approves</Text>
               </View>
               <View style={styles.wtBtnRow}>
-                <TouchableOpacity style={styles.wtGhost} onPress={nextStep}>
+                <TouchableOpacity style={styles.wtGhost}
+                  onPress={() => setWalkthroughStep(3)}>
                   <Text style={styles.wtGhostText}>Skip</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.wtPrimary} onPress={nextStep}>
-                  <Text style={styles.wtPrimaryText}>Next →</Text>
+                <TouchableOpacity style={styles.wtPrimary}
+                  onPress={() => setWalkthroughStep(3)}>
+                  <Text style={[styles.wtPrimaryText, { color: "#fff" }]}>Next →</Text>
                 </TouchableOpacity>
               </View>
             </>}
@@ -503,7 +508,7 @@ export default function TodayScreen() {
                   dismissWalkthrough();
                   router.push("/(tabs)/profile");
                 }}>
-                  <Text style={styles.wtPrimaryText}>Go to Family →</Text>
+                  <Text style={[styles.wtPrimaryText, { color: "#fff" }]}>Go to Family →</Text>
                 </TouchableOpacity>
               </View>
             </>}
@@ -719,7 +724,7 @@ const styles = StyleSheet.create({
   wtBtnRow:      { flexDirection: "row", gap: 10 },
   wtPrimary:     { flex: 1, backgroundColor: "#E8734A", borderRadius: 14,
                    paddingVertical: 12, alignItems: "center" },
-  wtPrimaryText: { color: "#fff", fontWeight: "700", fontSize: 15 },
+  wtPrimaryText: { color: "#ffffff", fontWeight: "700", fontSize: 15 },
   wtGhost:       { flex: 1, borderWidth: 1, borderColor: "#D0D0D0", borderRadius: 14,
                    paddingVertical: 12, alignItems: "center" },
   wtGhostText:   { color: "#999", fontSize: 15 },

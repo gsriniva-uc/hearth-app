@@ -60,10 +60,8 @@ export default function TodayScreen() {
     async function checkOnboarding() {
       if (!USER_ID) return;
       try {
-        const done = await AsyncStorage.getItem("walkthrough_done_" + USER_ID);
-        if (!done) {
-          setShowWalkthrough(true);
-        }
+        setWalkthroughStep(0);
+        setShowWalkthrough(true);
         // Check checklist status
         const profilesRes = await fetch(`${API_BASE_URL}/profiles?user_id=${USER_ID}`);
         const profiles    = await profilesRes.json();
@@ -78,8 +76,7 @@ export default function TodayScreen() {
     checkOnboarding();
   }, [USER_ID]);
 
-  async function dismissWalkthrough() {
-    await AsyncStorage.setItem("walkthrough_done_" + USER_ID, "true");
+  function dismissWalkthrough() {
     setShowWalkthrough(false);
   }
 

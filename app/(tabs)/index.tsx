@@ -297,10 +297,10 @@ export default function TodayScreen() {
   );
 
   return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
     <KeyboardAvoidingView style={{ flex: 1 }}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       keyboardVerticalOffset={90}>
-    <>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing}
           onRefresh={() => { setRefreshing(true); loadData(); }} />}>
@@ -613,7 +613,6 @@ export default function TodayScreen() {
           </View>
         </View>
       </Modal>
-    </>
     </KeyboardAvoidingView>
     </GestureHandlerRootView>
   );

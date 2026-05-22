@@ -30,6 +30,7 @@ export default function TodayScreen() {
   const [walkthroughStep, setWalkthroughStep] = useState(0);
   const [checklistDone,   setChecklistDone]   = useState({ child: false, scan: false });
   const [showChecklist,   setShowChecklist]   = useState(false);
+  const [conflicts,       setConflicts]       = useState<any[]>([]);
   const [chatInput,      setChatInput]      = useState("");
   const [chatReply,      setChatReply]      = useState("");
   const [loading,        setLoading]        = useState(true);
@@ -48,9 +49,14 @@ export default function TodayScreen() {
   const loadData = useCallback(async () => {
     if (!USER_ID) { setLoading(false); return; }
     try {
-      const res  = await fetch(`${API_BASE_URL}/events/today?user_id=${USER_ID}`);
-      const data = await res.json();
-      setTodayEvents(data);
+      const [evRes, confRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/events/today?user_id=${USER_ID}`),
+        fetch(`${API_BASE_URL}/events/conflicts?user_id=${USER_ID}&days_ahead=7`),
+      ]);
+      const evData   = await evRes.json();
+      const confData = await confRes.json();
+      setTodayEvents(evData);
+      setConflicts(confData.conflicts || []);
     } catch (e) { console.error(e); }
     finally { setLoading(false); setRefreshing(false); }
   }, [USER_ID]);
@@ -362,6 +368,17 @@ export default function TodayScreen() {
             </View>
           </View>
         )}
+
+        {/* Conflicts */}
+        {conflicts.map((c, i) => (
+          <View key={i} style={styles.conflictCard}>
+            <Ionicons name="warning" size={18} color="#E8734A" />
+            <View style={{ flex: 1, marginLeft: 8 }}>
+              <Text style={styles.conflictTitle}>⚠️ Schedule conflict on {c.date}</Text>
+              <Text style={styles.conflictBody}>{c.event1} and {c.event2} both at {c.time}</Text>
+            </View>
+          </View>
+        ))}
 
         {/* School */}
         <Text style={styles.section}>🏫 SCHOOL & ACTIVITIES</Text>
@@ -710,6 +727,11 @@ const styles = StyleSheet.create({
   cancelBtn:       { borderWidth: 1.5, borderColor: "#C0A090", borderRadius: 12,
                      paddingVertical: 14, alignItems: "center" },
   cancelBtnText:   { color: "#A0856B", fontWeight: "600", fontSize: 15 },
+  conflictCard:    { flexDirection: "row", alignItems: "flex-start",
+                   backgroundColor: "#FFF3E0", borderRadius: 12, padding: 12,
+                   marginBottom: 10, borderWidth: 1.5, borderColor: "#E8734A" },
+  conflictTitle:   { fontSize: 13, fontWeight: "700", color: "#E8734A" },
+  conflictBody:    { fontSize: 12, color: "#5C4033", marginTop: 2 },
   deleteAction:    { backgroundColor: "#E84A4A", justifyContent: "center",
                    alignItems: "center", width: 80, borderRadius: 14,
                    marginBottom: 8, flexDirection: "column", gap: 4 },

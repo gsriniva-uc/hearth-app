@@ -10,7 +10,10 @@
     "icon": "./assets/images/icon.png",
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.hearth.familyos"
+      "bundleIdentifier": "com.hearth.familyos",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.hearth.familyos",
@@ -19,6 +22,7 @@
         "backgroundColor": "#FFF8F0"
       },
       "permissions": [
+        "RECORD_AUDIO",
         "RECORD_AUDIO"
       ]
     },
@@ -35,6 +39,12 @@
         "projectId": "5ee62f8c-23c2-49f7-be1c-12621cd4d24d"
       }
     },
-    "owner": "gsriniva"
+    "owner": "gsriniva",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/5ee62f8c-23c2-49f7-be1c-12621cd4d24d"
+    }
   }
 }

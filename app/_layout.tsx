@@ -1,7 +1,41 @@
 import { useEffect, useState, useCallback, createContext, useContext } from "react";
 import { Stack, useRouter, useSegments } from "expo-router";
-import { View, ActivityIndicator, Linking } from "react-native";
+import { View, ActivityIndicator, Linking, Platform } from "react-native";
+import * as Notifications from "expo-notifications";
+import * as Device from "expo-device";
+import { API_BASE_URL } from "@/constants/config";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+
+async function registerForPushNotifications(userId: string) {
+  try {
+    if (!Device.isDevice) { console.log("[push] not a device, skipping"); return; }
+    const { status: existing } = await Notifications.getPermissionsAsync();
+    let finalStatus = existing;
+    if (existing !== "granted") {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+    if (finalStatus !== "granted") { console.log("[push] permission denied"); return; }
+    if (Platform.OS === "android") {
+      await Notifications.setNotificationChannelAsync("default", {
+        name: "default",
+        importance: Notifications.AndroidImportance.MAX,
+      });
+    }
+    const token = await Notifications.getExpoPushTokenAsync({
+      projectId: "5ee62f8c-23c2-49f7-be1c-12621cd4d24d",
+    });
+    console.log("[push] token:", token.data);
+    await fetch(API_BASE_URL + "/push/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: userId, token: token.data, platform: Platform.OS }),
+    });
+    console.log("[push] registered successfully");
+  } catch (e) {
+    console.error("[push] error:", e);
+  }
+}
 
 export interface User {
   user_id: string;
@@ -48,6 +82,7 @@ export default function RootLayout() {
 
   const setUser = async (u: User | null) => {
     setUserState(u);
+    if (u) registerForPushNotifications(u.user_id);
     if (u) {
       await AsyncStorage.setItem("hearth_user", JSON.stringify(u));
     } else {

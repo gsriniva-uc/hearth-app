@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { Swipeable, GestureHandlerRootView } from "react-native-gesture-handler";
 import { useFocusEffect } from "@react-navigation/native";
+import { Ionicons } from "@expo/vector-icons";
 import {
   View, Text, ScrollView, TouchableOpacity,
   RefreshControl, StyleSheet, ActivityIndicator,
@@ -32,6 +34,14 @@ export default function WeekScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
+  async function handleDelete(eventId: number) {
+    try {
+      await fetch(`${API_BASE_URL}/events/${eventId}?user_id=${USER_ID}`,
+                  { method: "DELETE" });
+      load();
+    } catch (e) { console.error(e); }
+  }
+
   const load = useCallback(async () => {
     if (!USER_ID) { setLoading(false); return; }
     try {
@@ -56,6 +66,7 @@ export default function WeekScreen() {
   }, {});
 
   return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
     <ScrollView style={styles.scroll} contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing}
         onRefresh={() => { setRefreshing(true); load(); }} />}>
@@ -99,7 +110,16 @@ export default function WeekScreen() {
                   const hasLongNote = ev.notes && ev.notes.length > 60;
 
                   return (
-                    <TouchableOpacity key={ev.id} style={styles.eventCard}
+                    <Swipeable key={ev.id}
+                      renderRightActions={() => (
+                        <TouchableOpacity
+                          style={styles.deleteAction}
+                          onPress={() => handleDelete(ev.id)}>
+                          <Ionicons name="trash" size={22} color="#fff" />
+                          <Text style={styles.deleteText}>Delete</Text>
+                        </TouchableOpacity>
+                      )}>
+                    <TouchableOpacity style={styles.eventCard}
                       onPress={() => setExpandedId(isExpanded ? null : ev.id)}
                       activeOpacity={0.7}>
                       <Text style={styles.eventIcon}>{icon}</Text>
@@ -122,6 +142,7 @@ export default function WeekScreen() {
                         ) : null}
                       </View>
                     </TouchableOpacity>
+                    </Swipeable>
                   );
                 })}
               </View>
@@ -129,6 +150,7 @@ export default function WeekScreen() {
           })
       )}
     </ScrollView>
+    </GestureHandlerRootView>
   );
 }
 

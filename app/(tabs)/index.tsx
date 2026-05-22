@@ -283,13 +283,22 @@ export default function TodayScreen() {
     weekday: "long", month: "long", day: "numeric" });
 
   const EventCard = ({ ev }: { ev: any }) => (
-    <View style={styles.eventCard}>
-      {ev.child_name !== "all" && <Text style={styles.eventChild}>{ev.child_name}</Text>}
-      <Text style={styles.eventLabel}>
-        {ev.notes || ev.event_type.replace(/_/g," ").replace(/\b\w/g,(c:string)=>c.toUpperCase())}
-      </Text>
-      {ev.event_time ? <Text style={styles.eventTime}>🕐 {ev.event_time}</Text> : null}
-    </View>
+    <Swipeable
+      renderRightActions={() => (
+        <TouchableOpacity style={styles.deleteAction}
+          onPress={() => handleDelete(ev.id)}>
+          <Ionicons name="trash" size={22} color="#fff" />
+          <Text style={styles.deleteText}>Delete</Text>
+        </TouchableOpacity>
+      )}>
+      <View style={styles.eventCard}>
+        {ev.child_name !== "all" && <Text style={styles.eventChild}>{ev.child_name}</Text>}
+        <Text style={styles.eventLabel}>
+          {ev.notes || ev.event_type.replace(/_/g," ").replace(/\b\w/g,(c:string)=>c.toUpperCase())}
+        </Text>
+        {ev.event_time ? <Text style={styles.eventTime}>🕐 {ev.event_time}</Text> : null}
+      </View>
+    </Swipeable>
   );
 
   if (loading) return (

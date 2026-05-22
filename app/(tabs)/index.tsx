@@ -5,6 +5,7 @@ import {
   RefreshControl, Alert, Modal, KeyboardAvoidingView, Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { Swipeable, GestureHandlerRootView } from "react-native-gesture-handler";
 import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system/legacy";
 import * as ImagePicker from "expo-image-picker";
@@ -239,6 +240,14 @@ export default function TodayScreen() {
   }
 
   // ── Chat ───────────────────────────────────────────────────────────────────
+  async function handleDelete(eventId: number) {
+    try {
+      await fetch(`${API_BASE_URL}/events/${eventId}?user_id=${USER_ID}`,
+                  { method: "DELETE" });
+      loadData();
+    } catch (e) { console.error(e); }
+  }
+
   async function handleChat() {
     if (!chatInput.trim() || !USER_ID) return;
     setChatLoading(true);
@@ -606,6 +615,7 @@ export default function TodayScreen() {
       </Modal>
     </>
     </KeyboardAvoidingView>
+    </GestureHandlerRootView>
   );
 }
 
@@ -692,6 +702,10 @@ const styles = StyleSheet.create({
   cancelBtn:       { borderWidth: 1.5, borderColor: "#C0A090", borderRadius: 12,
                      paddingVertical: 14, alignItems: "center" },
   cancelBtnText:   { color: "#A0856B", fontWeight: "600", fontSize: 15 },
+  deleteAction:    { backgroundColor: "#E84A4A", justifyContent: "center",
+                   alignItems: "center", width: 80, borderRadius: 14,
+                   marginBottom: 8, flexDirection: "column", gap: 4 },
+  deleteText:      { color: "#fff", fontSize: 12, fontWeight: "600" },
   voiceHint:       { fontSize: 11, color: "#C0A090", marginTop: 6,
                      textAlign: "center", fontStyle: "italic", marginBottom: 8 },
 

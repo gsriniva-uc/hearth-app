@@ -178,4 +178,8 @@ const styles = StyleSheet.create({
   empty:            { alignItems: "center", marginTop: 60, gap: 8 },
   emptyTitle:       { fontSize: 18, fontWeight: "700", color: "#8B4513" },
   emptySubtitle:    { fontSize: 14, color: "#A0856B" },
+  deleteAction:     { backgroundColor: "#E84A4A", justifyContent: "center",
+                      alignItems: "center", width: 80, borderRadius: 14,
+                      marginBottom: 8 },
+  deleteText:       { color: "#fff", fontSize: 12, fontWeight: "600", marginTop: 4 },
 });

@@ -89,9 +89,24 @@ export default function ProfileScreen() {
       const gmail = await gmailRes.json();
       const gcal  = await gcalRes.json();
       const total = (gmail.new || 0) + (gcal.new || 0);
-      Alert.alert("Sync complete", `Found ${total} new event(s) from Gmail and Google Calendar.`);
+
+      // Check for token expiry errors
+      const expiredAccounts = (gmail.errors || []).filter((e: any) => e.error === "token_expired");
+      if (expiredAccounts.length > 0) {
+        Alert.alert(
+          "Gmail reconnection needed",
+          `${expiredAccounts[0].email} needs to reconnect. Tap OK to reconnect.`,
+          [
+            { text: "Cancel", style: "cancel" },
+            { text: "Reconnect", onPress: () =>
+                Linking.openURL(expiredAccounts[0].reauth_url) }
+          ]
+        );
+      } else {
+        Alert.alert("Sync complete", `Found ${total} new event(s) from Gmail and Google Calendar.`);
+      }
     } catch {
-      Alert.alert("Error", "Scan failed.");
+      Alert.alert("Error", "Scan failed. Please check your internet connection.");
     } finally {
       setScanning(false);
     }

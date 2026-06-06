@@ -383,9 +383,11 @@ export default function TodayScreen() {
                 <Text style={styles.wtEmoji}>🏠</Text>
                 <Text style={styles.wtTitle}>Welcome to Hearth</Text>
                 <Text style={styles.wtBody}>Your family's concierge — managing school events, bills, and appointments all in one place.</Text>
-                <TouchableOpacity style={styles.wtPrimary} onPress={() => setWalkthroughStep(1)}>
-                  <Text style={styles.wtPrimaryText}>Get started →</Text>
-                </TouchableOpacity>
+                <View style={styles.wtBtnRow}>
+                  <TouchableOpacity style={styles.wtPrimary} onPress={() => setWalkthroughStep(1)}>
+                    <Text style={styles.wtPrimaryText}>Get started →</Text>
+                  </TouchableOpacity>
+                </View>
               </>}
               {walkthroughStep === 1 && <>
                 <Text style={styles.wtEmoji}>👧</Text>

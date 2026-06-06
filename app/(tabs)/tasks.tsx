@@ -54,15 +54,15 @@ export default function ActionsScreen() {
   const load = useCallback(async () => {
     if (!USER_ID) { setLoading(false); return; }
     try {
-      const [taskRes, campRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/tasks?user_id=${USER_ID}`),
-        fetch(`${API_BASE_URL}/camps?user_id=${USER_ID}`),
-      ]);
+      const taskRes = await fetch(`${API_BASE_URL}/tasks?user_id=${USER_ID}`);
       const taskData = await taskRes.json();
-      const campData = await campRes.json();
       setTasks(Array.isArray(taskData) ? taskData : []);
+    } catch (e) { console.error("tasks fetch:", e); }
+    try {
+      const campRes = await fetch(`${API_BASE_URL}/camps?user_id=${USER_ID}`);
+      const campData = await campRes.json();
       setCamps(Array.isArray(campData) ? campData : []);
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error("camps fetch:", e); }
     finally { setLoading(false); setRefreshing(false); }
   }, [USER_ID]);
 
@@ -430,29 +430,20 @@ export default function ActionsScreen() {
         ) : followups.map(t => <TaskCard key={t.id} task={t} section="followup" />)}
 
         {/* Summer Camps */}
-        {camps.length > 0 && (
+        {Array.isArray(camps) && camps.length > 0 && (
           <>
             <Text style={styles.section}>🏕️ CAMPS & ACTIVITIES</Text>
-            {Object.entries(
-              camps.reduce((acc: any, c: any) => {
-                const key = c.child_name || "Family";
-                if (!acc[key]) acc[key] = [];
-                acc[key].push(c);
-                return acc;
-              }, {})
-            ).map(([child, childCamps]: [string, any]) => (
-              <View key={child}>
-                <Text style={campCardStyles.childHeader}>{child}</Text>
-                {childCamps.map((camp: any) => {
+            {camps.map((camp: any) => {
                   const isUrgent = camp.registration_deadline &&
                     new Date(camp.registration_deadline) <= new Date(Date.now() + 3 * 86400000);
                   const isPast   = camp.registration_deadline &&
                     new Date(camp.registration_deadline) < new Date();
                   return (
-                    <View key={camp.id} style={[campCardStyles.card,
-                      isUrgent && camp.status === "pending" && campCardStyles.cardUrgent]}>
-                      <View style={campCardStyles.row}>
-                        <Text style={campCardStyles.name}>{camp.camp_name}</Text>
+                  <View key={camp.id} style={[campCardStyles.card,
+                    isUrgent && camp.status === "pending" && campCardStyles.cardUrgent]}>
+                    {camp.child_name ? <Text style={campCardStyles.childHeader}>{camp.child_name}</Text> : null}
+                    <View style={campCardStyles.row}>
+                      <Text style={campCardStyles.name}>{camp.camp_name}</Text>
                         <Text style={[campCardStyles.badge,
                           camp.status === "registered" && campCardStyles.badgeGreen,
                           camp.status === "missed"     && campCardStyles.badgeRed]}>
@@ -497,9 +488,7 @@ export default function ActionsScreen() {
                       </View>
                     </View>
                   );
-                })}
-              </View>
-            ))}
+            })}
           </>
         )}
 

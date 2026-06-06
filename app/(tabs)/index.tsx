@@ -433,7 +433,10 @@ export default function TodayScreen() {
                   <TouchableOpacity style={styles.wtGhost} onPress={dismissWalkthrough}>
                     <Text style={styles.wtGhostText}>Skip</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.wtPrimary} onPress={() => { dismissWalkthrough(); router.push("/(tabs)/profile"); }}>
+                  <TouchableOpacity style={styles.wtPrimary} onPress={() => {
+                    dismissWalkthrough();
+                    setTimeout(() => router.push("/(tabs)/profile"), 300);
+                  }}>
                     <Text style={styles.wtPrimaryText}>Go to Family →</Text>
                   </TouchableOpacity>
                 </View>
@@ -548,14 +551,14 @@ const styles = StyleSheet.create({
   conflictTitle:    { fontSize: 13, fontWeight: "700", color: "#E8734A" },
   conflictBody:     { fontSize: 12, color: "#5C4033", marginTop: 2 },
   walkthroughOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", alignItems: "center", justifyContent: "center", padding: 24 },
-  walkthroughCard:  { backgroundColor: "#F2F2F2", borderRadius: 24, padding: 20, paddingBottom: 28, width: "100%", maxHeight: "75%" },
+  walkthroughCard:  { backgroundColor: "#F2F2F2", borderRadius: 24, padding: 16, paddingBottom: 24, width: "100%" },
   walkthroughHandle:{ width: 36, height: 4, backgroundColor: "#C0C0C0", borderRadius: 2, alignSelf: "center", marginBottom: 14 },
   dotRow:           { flexDirection: "row", gap: 6, justifyContent: "center", marginBottom: 14 },
   dot:              { width: 6, height: 6, borderRadius: 3, backgroundColor: "#D0D0D0" },
   dotActive:        { width: 18, borderRadius: 3, backgroundColor: "#E8734A" },
-  wtEmoji:          { fontSize: 36, textAlign: "center", marginBottom: 8 },
-  wtTitle:          { fontSize: 18, fontWeight: "700", color: "#333", textAlign: "center", marginBottom: 8 },
-  wtBody:           { fontSize: 14, color: "#666", textAlign: "center", lineHeight: 20, marginBottom: 14 },
+  wtEmoji:          { fontSize: 28, textAlign: "center", marginBottom: 6 },
+  wtTitle:          { fontSize: 16, fontWeight: "700", color: "#333", textAlign: "center", marginBottom: 6 },
+  wtBody:           { fontSize: 13, color: "#666", textAlign: "center", lineHeight: 18, marginBottom: 10 },
   wtTips:           { backgroundColor: "#fff", borderRadius: 12, padding: 12, marginBottom: 14 },
   wtTip:            { fontSize: 13, color: "#5C4033", lineHeight: 22 },
   wtBtnRow:         { flexDirection: "row", gap: 10 },

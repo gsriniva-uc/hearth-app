@@ -9,6 +9,20 @@ import { API_BASE_URL } from "@/constants/config";
 
 const APK_URL = "https://expo.dev/accounts/gsriniva/projects/hearth-app-gs-aliq2kjh1s8wphd0xuvka/builds/392c23ab-ac12-4042-b184-8842bf7a9e02";
 
+const campStyles = StyleSheet.create({
+  overlay:  { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
+  card:     { backgroundColor: "#FFF8F0", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
+  handle:   { width: 36, height: 4, backgroundColor: "#C0C0C0", borderRadius: 2, alignSelf: "center", marginBottom: 16 },
+  title:    { fontSize: 22, fontWeight: "800", color: "#8B4513", marginBottom: 8, fontFamily: "Georgia" },
+  body:     { fontSize: 14, color: "#5C4033", lineHeight: 22, marginBottom: 16 },
+  hint:     { fontSize: 13, color: "#A0856B", marginBottom: 16, fontStyle: "italic" },
+  input:    { borderWidth: 1, borderColor: "#E8E8E8", borderRadius: 14, padding: 12, fontSize: 14, color: "#333", backgroundColor: "#fff", minHeight: 100, textAlignVertical: "top", marginBottom: 16 },
+  btn:      { backgroundColor: "#E8734A", borderRadius: 14, paddingVertical: 14, alignItems: "center", marginBottom: 8 },
+  btnText:  { color: "#fff", fontWeight: "700", fontSize: 15 },
+  skip:     { alignItems: "center", paddingVertical: 8 },
+  skipText: { color: "#A0856B", fontSize: 14 },
+});
+
 export default function ProfileScreen() {
   const { user, signOut } = useAuth();
   const [children,  setChildren]  = useState<any[]>([]);
@@ -77,6 +91,12 @@ export default function ProfileScreen() {
             `Connect your Gmail to our Hearth family calendar:\n${API_BASE_URL}/auth/login?user_id=${user?.user_id}&add_account=true` }) },
     ]);
   }
+
+  useEffect(() => {
+    if (!user) return;
+    fetch(`${API_BASE_URL}/profiles?user_id=${user.user_id}`)
+      .then(r => r.json()).then(setChildren).catch(() => {});
+  }, [user]);
 
   async function handleScanAll() {
     if (!user) return;
@@ -200,6 +220,141 @@ export default function ProfileScreen() {
               style={{ alignItems:"center", marginTop:12 }}>
               <Text style={{ color:"#A0856B" }}>Cancel</Text>
             </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+    </ScrollView>
+
+      {/* Camp Collection Modal */}
+      <Modal visible={showCampModal} transparent animationType="slide">
+        <View style={campStyles.overlay}>
+          <View style={campStyles.card}>
+            <View style={campStyles.handle} />
+
+            {campStep === "intro" && (
+              <>
+                <Text style={campStyles.title}>🏕️ Add Camps</Text>
+                <Text style={campStyles.body}>
+                  Let Hearth track camp registration deadlines and send reminders for each of your kids.
+                </Text>
+                {children.length === 0 ? (
+                  <Text style={campStyles.hint}>Add children in the Family tab first.</Text>
+                ) : (
+                  <TouchableOpacity style={campStyles.btn} onPress={() => {
+                    setCampChildIndex(0);
+                    setCampMessage("What camps is " + children[0].name + " doing? Include registration deadlines and camp dates if you know them.");
+                    setCampStep("collecting");
+                  }}>
+                    <Text style={campStyles.btnText}>Let's start →</Text>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity onPress={() => setShowCampModal(false)} style={campStyles.skip}>
+                  <Text style={campStyles.skipText}>Maybe later</Text>
+                </TouchableOpacity>
+              </>
+            )}
+
+            {campStep === "collecting" && (
+              <>
+                <Text style={campStyles.title}>
+                  🧒 {children[campChildIndex]?.name}
+                </Text>
+                <Text style={campStyles.body}>{campMessage}</Text>
+                <TextInput
+                  style={campStyles.input}
+                  placeholder="e.g. Code Wiz July 14-18, deadline May 30. Science camp June 23-27..."
+                  placeholderTextColor="#A0856B"
+                  value={campInput}
+                  onChangeText={setCampInput}
+                  multiline
+                  numberOfLines={4}
+                />
+                <TouchableOpacity
+                  style={[campStyles.btn, campLoading && { opacity: 0.6 }]}
+                  disabled={campLoading}
+                  onPress={async () => {
+                    if (!campInput.trim()) {
+                      // Skip this child
+                      if (campChildIndex < children.length - 1) {
+                        setCampChildIndex(campChildIndex + 1);
+                        setCampMessage("What camps is " + children[campChildIndex + 1].name + " doing?");
+                        setCampInput("");
+                      } else {
+                        setCampStep("done");
+                      }
+                      return;
+                    }
+                    setCampLoading(true);
+                    try {
+                      const child = children[campChildIndex];
+                      const parseRes = await fetch(`${API_BASE_URL}/camps/parse`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          user_id: user?.user_id,
+                          child_name: child.name,
+                          text: campInput.trim(),
+                        }),
+                      });
+                      const parsed = await parseRes.json();
+                      const camps = parsed.camps || [];
+
+                      // Save each camp
+                      for (const camp of camps) {
+                        await fetch(`${API_BASE_URL}/camps`, {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            user_id: user?.user_id,
+                            child_name: child.name,
+                            ...camp,
+                          }),
+                        });
+                      }
+
+                      setCampInput("");
+                      if (campChildIndex < children.length - 1) {
+                        setCampChildIndex(campChildIndex + 1);
+                        setCampMessage("Got it! " + camps.length + " camp(s) saved for " + child.name + ".
+
+What camps is " + children[campChildIndex + 1].name + " doing?");
+                      } else {
+                        // Trigger URL search in background
+                        fetch(`${API_BASE_URL}/camps/search-urls?user_id=${user?.user_id}`, { method: "POST" });
+                        setCampStep("done");
+                      }
+                    } catch {
+                      Alert.alert("Error", "Could not save camps. Try again.");
+                    } finally {
+                      setCampLoading(false);
+                    }
+                  }}>
+                  {campLoading
+                    ? <ActivityIndicator color="#fff" />
+                    : <Text style={campStyles.btnText}>
+                        {campInput.trim() ? "Save & continue →" : "Skip this child →"}
+                      </Text>}
+                </TouchableOpacity>
+              </>
+            )}
+
+            {campStep === "done" && (
+              <>
+                <Text style={campStyles.title}>✅ All done!</Text>
+                <Text style={campStyles.body}>
+                  Hearth will search for registration links and send reminders as deadlines approach. Check the Actions tab to see your camps.
+                </Text>
+                <TouchableOpacity style={campStyles.btn} onPress={() => {
+                  setShowCampModal(false);
+                  setCampStep("intro");
+                  setCampChildIndex(0);
+                  setCampInput("");
+                }}>
+                  <Text style={campStyles.btnText}>Done</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         </View>
       </Modal>

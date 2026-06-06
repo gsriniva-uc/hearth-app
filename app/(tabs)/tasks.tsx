@@ -54,9 +54,14 @@ export default function ActionsScreen() {
   const load = useCallback(async () => {
     if (!USER_ID) { setLoading(false); return; }
     try {
-      const res  = await fetch(`${API_BASE_URL}/tasks?user_id=${USER_ID}`);
-      const data = await res.json();
-      setTasks(Array.isArray(data) ? data : []);
+      const [taskRes, campRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/tasks?user_id=${USER_ID}`),
+        fetch(`${API_BASE_URL}/camps?user_id=${USER_ID}`),
+      ]);
+      const taskData = await taskRes.json();
+      const campData = await campRes.json();
+      setTasks(Array.isArray(taskData) ? taskData : []);
+      setCamps(Array.isArray(campData) ? campData : []);
     } catch (e) { console.error(e); }
     finally { setLoading(false); setRefreshing(false); }
   }, [USER_ID]);
@@ -424,6 +429,80 @@ export default function ActionsScreen() {
           </View>
         ) : followups.map(t => <TaskCard key={t.id} task={t} section="followup" />)}
 
+        {/* Summer Camps */}
+        {camps.length > 0 && (
+          <>
+            <Text style={styles.section}>🏕️ CAMPS & ACTIVITIES</Text>
+            {Object.entries(
+              camps.reduce((acc: any, c: any) => {
+                const key = c.child_name || "Family";
+                if (!acc[key]) acc[key] = [];
+                acc[key].push(c);
+                return acc;
+              }, {})
+            ).map(([child, childCamps]: [string, any]) => (
+              <View key={child}>
+                <Text style={campCardStyles.childHeader}>{child}</Text>
+                {childCamps.map((camp: any) => {
+                  const isUrgent = camp.registration_deadline &&
+                    new Date(camp.registration_deadline) <= new Date(Date.now() + 3 * 86400000);
+                  const isPast   = camp.registration_deadline &&
+                    new Date(camp.registration_deadline) < new Date();
+                  return (
+                    <View key={camp.id} style={[campCardStyles.card,
+                      isUrgent && camp.status === "pending" && campCardStyles.cardUrgent]}>
+                      <View style={campCardStyles.row}>
+                        <Text style={campCardStyles.name}>{camp.camp_name}</Text>
+                        <Text style={[campCardStyles.badge,
+                          camp.status === "registered" && campCardStyles.badgeGreen,
+                          camp.status === "missed"     && campCardStyles.badgeRed]}>
+                          {camp.status === "registered" ? "✅ Registered"
+                           : camp.status === "missed"   ? "❌ Missed"
+                           : isPast                     ? "⚠️ Deadline passed"
+                           : "Pending"}
+                        </Text>
+                      </View>
+                      {camp.registration_deadline && (
+                        <Text style={campCardStyles.deadline}>
+                          📅 Register by {camp.registration_deadline}
+                        </Text>
+                      )}
+                      {(camp.camp_start_date || camp.camp_end_date) && (
+                        <Text style={campCardStyles.dates}>
+                          🗓️ {camp.camp_start_date} → {camp.camp_end_date}
+                        </Text>
+                      )}
+                      <View style={campCardStyles.actions}>
+                        {camp.registration_url ? (
+                          <TouchableOpacity style={campCardStyles.linkBtn}
+                            onPress={() => Linking.openURL(camp.registration_url)}>
+                            <Text style={campCardStyles.linkBtnText}>Register →</Text>
+                          </TouchableOpacity>
+                        ) : (
+                          <Text style={campCardStyles.noLink}>🔍 Searching for link...</Text>
+                        )}
+                        {camp.status === "pending" && (
+                          <TouchableOpacity style={campCardStyles.doneBtn}
+                            onPress={async () => {
+                              await fetch(`${API_BASE_URL}/camps/${camp.id}/status`, {
+                                method: "PUT",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ user_id: USER_ID, status: "registered" }),
+                              });
+                              load();
+                            }}>
+                            <Text style={campCardStyles.doneBtnText}>Mark Registered</Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            ))}
+          </>
+        )}
+
         {/* Add Pattern Chat Bar */}
         <Text style={styles.section}>➕ ADD REMINDER PATTERN</Text>
         <View style={styles.inputBar}>
@@ -688,4 +767,23 @@ const styles = StyleSheet.create({
   cancelPreviewBtn:{ borderWidth: 1.5, borderColor: "#C0A090", borderRadius: 12,
                      paddingVertical: 14, alignItems: "center" },
   cancelPreviewText:{ color: "#A0856B", fontWeight: "600", fontSize: 15 },
+});
+
+const campCardStyles = StyleSheet.create({
+  childHeader: { fontSize: 13, fontWeight: "700", color: "#A0856B", letterSpacing: 0.5, marginBottom: 6, marginTop: 4 },
+  card:        { backgroundColor: "#fff", borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: "#F5E6D3", elevation: 2 },
+  cardUrgent:  { borderColor: "#E8734A", borderWidth: 1.5 },
+  row:         { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 },
+  name:        { fontSize: 15, fontWeight: "700", color: "#5C4033", flex: 1 },
+  badge:       { fontSize: 11, color: "#A0856B", backgroundColor: "#F5E6D3", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
+  badgeGreen:  { backgroundColor: "#D1FAE5", color: "#065F46" },
+  badgeRed:    { backgroundColor: "#FEE2E2", color: "#991B1B" },
+  deadline:    { fontSize: 12, color: "#E8734A", marginBottom: 3, fontWeight: "600" },
+  dates:       { fontSize: 12, color: "#A0856B", marginBottom: 8 },
+  actions:     { flexDirection: "row", gap: 8, marginTop: 4 },
+  linkBtn:     { backgroundColor: "#E8734A", borderRadius: 10, paddingVertical: 7, paddingHorizontal: 14 },
+  linkBtnText: { color: "#fff", fontWeight: "700", fontSize: 13 },
+  noLink:      { fontSize: 12, color: "#A0856B", fontStyle: "italic", paddingVertical: 7 },
+  doneBtn:     { borderWidth: 1, borderColor: "#4A9E6B", borderRadius: 10, paddingVertical: 7, paddingHorizontal: 14 },
+  doneBtnText: { color: "#4A9E6B", fontWeight: "600", fontSize: 13 },
 });

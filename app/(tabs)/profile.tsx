@@ -135,6 +135,7 @@ export default function ProfileScreen() {
   if (!user) return null;
 
   return (
+    <>
     <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
 
       {/* User card */}
@@ -316,9 +317,7 @@ export default function ProfileScreen() {
                       setCampInput("");
                       if (campChildIndex < children.length - 1) {
                         setCampChildIndex(campChildIndex + 1);
-                        setCampMessage("Got it! " + camps.length + " camp(s) saved for " + child.name + ".
-
-What camps is " + children[campChildIndex + 1].name + " doing?");
+                        setCampMessage("Got it! " + camps.length + " camp(s) saved for " + child.name + ". What camps is " + children[campChildIndex + 1].name + " doing?");
                       } else {
                         // Trigger URL search in background
                         fetch(`${API_BASE_URL}/camps/search-urls?user_id=${user?.user_id}`, { method: "POST" });
@@ -359,7 +358,7 @@ What camps is " + children[campChildIndex + 1].name + " doing?");
         </View>
       </Modal>
 
-    </ScrollView>
+    </>
   );
 }
 

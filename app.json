@@ -13,7 +13,8 @@
       "bundleIdentifier": "com.hearth.familyos",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
-      }
+      },
+      "buildNumber": "20"
     },
     "android": {
       "package": "com.hearth.familyos",

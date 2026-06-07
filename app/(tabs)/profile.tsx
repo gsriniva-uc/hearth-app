@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import {
   View, Text, ScrollView, TouchableOpacity,
   StyleSheet, Alert, Linking, Share, TextInput,
-  Modal, ActivityIndicator,
+  Modal, ActivityIndicator, KeyboardAvoidingView, Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/app/_layout";
@@ -259,6 +259,7 @@ export default function ProfileScreen() {
       </Modal>
 
       <Modal visible={showCampModal} transparent animationType="slide">
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
         <View style={campStyles.overlay}>
           <View style={campStyles.card}>
             <View style={campStyles.handle} />
@@ -331,6 +332,7 @@ export default function ProfileScreen() {
 
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
 
     </View>

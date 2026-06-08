@@ -1,18 +1,17 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { Swipeable, GestureHandlerRootView } from "react-native-gesture-handler";
-import { useFocusEffect } from "@react-navigation/native";
-import { Ionicons } from "@expo/vector-icons";
+import { useState, useEffect, useCallback } from "react";
 import {
   View, Text, ScrollView, TouchableOpacity,
   RefreshControl, StyleSheet, ActivityIndicator,
 } from "react-native";
+import { Swipeable, GestureHandlerRootView } from "react-native-gesture-handler";
+import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/app/_layout";
 import { API_BASE_URL } from "@/constants/config";
 
 const WINDOWS = [7, 14, 30, 60];
 
 const EVENT_ICONS: Record<string, string> = {
-  dress_down_day:     "👕",
+  dress_down_day:     "👗",
   early_dismissal:    "🏫",
   recital:            "🎭",
   movie_night:        "🎬",
@@ -22,6 +21,7 @@ const EVENT_ICONS: Record<string, string> = {
   sports_game:        "⚽",
   school_holiday:     "🎉",
   activity:           "🎨",
+  bill:               "💳",
   other:              "📅",
 };
 
@@ -34,30 +34,24 @@ export default function WeekScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
-  async function handleDelete(eventId: number) {
-    try {
-      await fetch(`${API_BASE_URL}/events/${eventId}?user_id=${USER_ID}`,
-                  { method: "DELETE" });
-      load();
-    } catch (e) { console.error(e); }
-  }
-
   const load = useCallback(async () => {
     if (!USER_ID) { setLoading(false); return; }
     try {
       const res  = await fetch(`${API_BASE_URL}/events?user_id=${USER_ID}&days_ahead=${daysAhead}`);
       const data = await res.json();
-      setEvents(data);
+      setEvents(Array.isArray(data) ? data : []);
     } catch (e) { console.error(e); }
     finally { setLoading(false); setRefreshing(false); }
   }, [USER_ID, daysAhead]);
 
   useEffect(() => { load(); }, [load]);
 
-  // Refresh every time user navigates to this tab
-  useFocusEffect(
-    useCallback(() => { load(); }, [load])
-  );
+  async function handleDelete(id: number) {
+    try {
+      await fetch(`${API_BASE_URL}/events/${id}?user_id=${USER_ID}`, { method: "DELETE" });
+      setEvents(prev => prev.filter(e => e.id !== id));
+    } catch (e) { console.error(e); }
+  }
 
   const grouped = events.reduce<Record<string, any[]>>((acc, ev) => {
     if (!acc[ev.event_date]) acc[ev.event_date] = [];
@@ -67,89 +61,78 @@ export default function WeekScreen() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-    <ScrollView style={styles.scroll} contentContainerStyle={styles.content}
-      refreshControl={<RefreshControl refreshing={refreshing}
-        onRefresh={() => { setRefreshing(true); load(); }} />}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}
+        refreshControl={<RefreshControl refreshing={refreshing}
+          onRefresh={() => { setRefreshing(true); load(); }} />}>
 
-      <Text style={styles.title}>✨ Coming Up</Text>
+        <Text style={styles.title}>Upcoming</Text>
 
-      <View style={styles.windowRow}>
-        {WINDOWS.map(d => (
-          <TouchableOpacity key={d}
-            style={[styles.windowBtn, daysAhead === d && styles.windowBtnActive]}
-            onPress={() => setDaysAhead(d)}>
-            <Text style={[styles.windowText, daysAhead === d && styles.windowTextActive]}>
-              {d}d
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {loading ? (
-        <ActivityIndicator color="#E8734A" style={{ marginTop: 40 }} />
-      ) : Object.keys(grouped).length === 0 ? (
-        <View style={styles.empty}>
-          <Text style={styles.emptyTitle}>No events found</Text>
-          <Text style={styles.emptySubtitle}>Try selecting more days above</Text>
+        <View style={styles.windowRow}>
+          {WINDOWS.map(d => (
+            <TouchableOpacity key={d}
+              style={[styles.windowBtn, daysAhead === d && styles.windowBtnActive]}
+              onPress={() => setDaysAhead(d)}>
+              <Text style={[styles.windowText, daysAhead === d && styles.windowTextActive]}>
+                {d}d
+              </Text>
+            </TouchableOpacity>
+          ))}
         </View>
-      ) : (
-        Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b))
-          .map(([dateStr, evs]) => {
-            const d     = new Date(dateStr + "T12:00:00");
-            const label = d.toLocaleDateString("en-US",
-              { weekday: "short", month: "2-digit", day: "2-digit", year: "2-digit" });
-            return (
-              <View key={dateStr} style={styles.dayGroup}>
-                <Text style={styles.dayLabel}>{label}</Text>
-                {evs.map((ev: any) => {
-                  const isExpanded = expandedId === ev.id;
-                  const icon       = EVENT_ICONS[ev.event_type] || "📅";
-                  const typeLabel  = ev.event_type
-                    .replace(/_/g, " ")
-                    .replace(/\b\w/g, (c: string) => c.toUpperCase());
-                  const hasLongNote = ev.notes && ev.notes.length > 60;
 
-                  return (
-                    <Swipeable key={ev.id}
-                      renderRightActions={() => (
-                        <TouchableOpacity
-                          style={styles.deleteAction}
-                          onPress={() => handleDelete(ev.id)}>
-                          <Ionicons name="trash" size={22} color="#fff" />
-                          <Text style={styles.deleteText}>Delete</Text>
+        {loading ? (
+          <ActivityIndicator color="#E8734A" style={{ marginTop: 40 }} />
+        ) : Object.keys(grouped).length === 0 ? (
+          <View style={styles.empty}>
+            <Text style={styles.emptyTitle}>No events found</Text>
+            <Text style={styles.emptySubtitle}>Try selecting more days above</Text>
+          </View>
+        ) : (
+          Object.entries(grouped)
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([dateStr, evs]) => {
+              const d     = new Date(dateStr + "T12:00:00");
+              const label = d.toLocaleDateString("en-US",
+                { weekday: "short", month: "2-digit", day: "2-digit", year: "2-digit" });
+              return (
+                <View key={dateStr} style={styles.dayGroup}>
+                  <Text style={styles.dayLabel}>{label}</Text>
+                  {evs.map((ev: any) => {
+                    const isExpanded  = expandedId === ev.id;
+                    const icon        = EVENT_ICONS[ev.event_type] || "📅";
+                    const childName   = ev.child_name && ev.child_name !== "all" ? ev.child_name : null;
+                    const primaryLabel = ev.notes || ev.event_type.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
+
+                    return (
+                      <Swipeable key={ev.id}
+                        renderRightActions={() => (
+                          <TouchableOpacity style={styles.deleteAction}
+                            onPress={() => handleDelete(ev.id)}>
+                            <Ionicons name="trash" size={22} color="#fff" />
+                            <Text style={styles.deleteText}>Delete</Text>
+                          </TouchableOpacity>
+                        )}>
+                        <TouchableOpacity style={styles.eventCard}
+                          onPress={() => setExpandedId(isExpanded ? null : ev.id)}
+                          activeOpacity={0.7}>
+                          <Text style={styles.eventIcon}>{icon}</Text>
+                          <View style={{ flex: 1 }}>
+                            {childName
+                              ? <Text style={styles.eventChild}>{childName}</Text>
+                              : null}
+                            <Text style={styles.eventLabel}>{primaryLabel}</Text>
+                            {ev.event_time
+                              ? <Text style={styles.eventTime}>🕐 {ev.event_time}</Text>
+                              : null}
+                          </View>
                         </TouchableOpacity>
-                      )}>
-                    <TouchableOpacity style={styles.eventCard}
-                      onPress={() => setExpandedId(isExpanded ? null : ev.id)}
-                      activeOpacity={0.7}>
-                      <Text style={styles.eventIcon}>{icon}</Text>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.eventChild}>{ev.child_name}</Text>
-                        <Text style={styles.eventLabel}>{typeLabel}</Text>
-                        {ev.event_time ? (
-                          <Text style={styles.eventTime}>🕐 {ev.event_time}</Text>
-                        ) : null}
-                        {ev.notes ? (
-                          <Text style={styles.eventNotes}
-                            numberOfLines={isExpanded ? 0 : 2}>
-                            {ev.notes}
-                          </Text>
-                        ) : null}
-                        {hasLongNote ? (
-                          <Text style={styles.expandHint}>
-                            {isExpanded ? "▲ less" : "▼ more"}
-                          </Text>
-                        ) : null}
-                      </View>
-                    </TouchableOpacity>
-                    </Swipeable>
-                  );
-                })}
-              </View>
-            );
-          })
-      )}
-    </ScrollView>
+                      </Swipeable>
+                    );
+                  })}
+                </View>
+              );
+            })
+        )}
+      </ScrollView>
     </GestureHandlerRootView>
   );
 }
@@ -159,27 +142,20 @@ const styles = StyleSheet.create({
   content:          { padding: 20, paddingBottom: 40, paddingTop: 60 },
   title:            { fontSize: 26, fontWeight: "800", color: "#8B4513", marginBottom: 16 },
   windowRow:        { flexDirection: "row", gap: 8, marginBottom: 20 },
-  windowBtn:        { paddingVertical: 8, paddingHorizontal: 16,
-                      borderRadius: 20, backgroundColor: "#F5E6D3" },
+  windowBtn:        { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20, backgroundColor: "#F5E6D3" },
   windowBtnActive:  { backgroundColor: "#E8734A" },
   windowText:       { color: "#8B4513", fontWeight: "600", fontSize: 13 },
   windowTextActive: { color: "#fff" },
   dayGroup:         { marginBottom: 20 },
-  dayLabel:         { fontSize: 13, fontWeight: "700", color: "#A0856B",
-                      letterSpacing: 0.5, marginBottom: 8 },
-  eventCard:        { flexDirection: "row", backgroundColor: "#fff",
-                      borderRadius: 14, padding: 14, marginBottom: 8, elevation: 2 },
+  dayLabel:         { fontSize: 13, fontWeight: "700", color: "#A0856B", letterSpacing: 0.5, marginBottom: 8 },
+  eventCard:        { flexDirection: "row", backgroundColor: "#fff", borderRadius: 14, padding: 14, marginBottom: 8, elevation: 2 },
   eventIcon:        { fontSize: 28, marginRight: 12 },
-  eventChild:       { fontSize: 13, fontWeight: "700", color: "#E8734A" },
-  eventLabel:       { fontSize: 15, fontWeight: "600", color: "#5C4033", marginTop: 2 },
+  eventChild:       { fontSize: 13, fontWeight: "700", color: "#E8734A", marginBottom: 2 },
+  eventLabel:       { fontSize: 15, fontWeight: "600", color: "#5C4033" },
   eventTime:        { fontSize: 12, color: "#E8734A", marginTop: 3, fontWeight: "600" },
-  eventNotes:       { fontSize: 12, color: "#A0856B", marginTop: 4, lineHeight: 16 },
-  expandHint:       { fontSize: 11, color: "#C0A090", marginTop: 4 },
+  deleteAction:     { backgroundColor: "#E84A4A", justifyContent: "center", alignItems: "center", width: 80, borderRadius: 14, marginBottom: 8, gap: 4 },
+  deleteText:       { color: "#fff", fontSize: 12, fontWeight: "600" },
   empty:            { alignItems: "center", marginTop: 60, gap: 8 },
   emptyTitle:       { fontSize: 18, fontWeight: "700", color: "#8B4513" },
   emptySubtitle:    { fontSize: 14, color: "#A0856B" },
-  deleteAction:     { backgroundColor: "#E84A4A", justifyContent: "center",
-                      alignItems: "center", width: 80, borderRadius: 14,
-                      marginBottom: 8 },
-  deleteText:       { color: "#fff", fontSize: 12, fontWeight: "600", marginTop: 4 },
 });

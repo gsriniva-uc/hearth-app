@@ -444,6 +444,14 @@ export default function TodayScreen() {
                   </TouchableOpacity>
                 </View>
               </>}
+              {walkthroughStep === 4 && (
+                <View>
+                  <Text style={styles.wtEmoji}>🧠</Text>
+                  <Text style={styles.wtTitle}>What drives your mental load?</Text>
+                  <Text style={styles.wtBody}>Hearth will focus on the areas that matter most to your family.</Text>
+                  <MentalLoadSelector user_id={USER_ID} onDone={dismissWalkthrough} />
+                </View>
+              )}
             </View>
           </View>
         </Modal>

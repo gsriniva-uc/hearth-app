@@ -7,6 +7,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system/legacy";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "@/app/_layout";
 import { API_BASE_URL } from "@/constants/config";
 
@@ -30,6 +31,17 @@ export default function TasksScreen() {
 
   const load = useCallback(async () => {
     if (!USER_ID) { setLoading(false); return; }
+    // Show cache instantly
+    try {
+      const cached = await AsyncStorage.getItem("briefing_" + USER_ID);
+      if (cached) {
+        const p = JSON.parse(cached);
+        setItems(p.items || []);
+        setBriefingTime(p.time || "");
+        setLoading(false);
+      }
+    } catch {}
+    // Fetch fresh in background
     try {
       const res  = await fetch(`${API_BASE_URL}/actions/briefing`, {
         method: "POST",
@@ -37,9 +49,13 @@ export default function TasksScreen() {
         body: JSON.stringify({ user_id: USER_ID }),
       });
       const data = await res.json();
-      setItems(Array.isArray(data.items) ? data.items : []);
-      setBriefingTime(new Date().toLocaleTimeString("en-US",
-        { hour: "numeric", minute: "2-digit" }));
+      const freshItems = Array.isArray(data.items) ? data.items : [];
+      const freshTime  = new Date().toLocaleTimeString("en-US",
+        { hour: "numeric", minute: "2-digit" });
+      setItems(freshItems);
+      setBriefingTime(freshTime);
+      await AsyncStorage.setItem("briefing_" + USER_ID,
+        JSON.stringify({ items: freshItems, time: freshTime }));
     } catch (e) { console.error("briefing:", e); }
     finally { setLoading(false); setRefreshing(false); }
   }, [USER_ID]);

@@ -84,7 +84,7 @@ export default function TodayScreen() {
 
   function dismissWalkthrough() { setShowWalkthrough(false); }
   function nextStep() {
-    if (walkthroughStep < 3) setWalkthroughStep(walkthroughStep + 1);
+    if (walkthroughStep < 4) setWalkthroughStep(walkthroughStep + 1);
     else dismissWalkthrough();
   }
 
@@ -372,7 +372,7 @@ export default function TodayScreen() {
 
         </ScrollView>
 
-        {/* Walkthrough */}
+                {/* Walkthrough */}
         <Modal visible={showWalkthrough} transparent animationType="fade">
           <View style={styles.walkthroughOverlay}>
             <View style={styles.walkthroughCard}>
@@ -380,6 +380,7 @@ export default function TodayScreen() {
               <View style={styles.dotRow}>
                 {[0,1,2,3,4].map(i => <View key={i} style={[styles.dot, walkthroughStep === i && styles.dotActive]} />)}
               </View>
+
               {walkthroughStep === 0 && <>
                 <Text style={styles.wtEmoji}>🏠</Text>
                 <Text style={styles.wtTitle}>Welcome to Hearth</Text>
@@ -390,6 +391,7 @@ export default function TodayScreen() {
                   </TouchableOpacity>
                 </View>
               </>}
+
               {walkthroughStep === 1 && <>
                 <Text style={styles.wtEmoji}>👧</Text>
                 <Text style={styles.wtTitle}>Who are we looking after?</Text>
@@ -407,6 +409,7 @@ export default function TodayScreen() {
                   </TouchableOpacity>
                 </View>
               </>}
+
               {walkthroughStep === 2 && <>
                 <Text style={styles.wtEmoji}>📧</Text>
                 <Text style={styles.wtTitle}>Connect partner's Gmail</Text>
@@ -424,6 +427,7 @@ export default function TodayScreen() {
                   </TouchableOpacity>
                 </View>
               </>}
+
               {walkthroughStep === 3 && <>
                 <Text style={styles.wtEmoji}>🔍</Text>
                 <Text style={styles.wtTitle}>Run your first scan</Text>
@@ -433,17 +437,15 @@ export default function TodayScreen() {
                   <Text style={styles.wtTip}>→  Events appear in Upcoming tab</Text>
                 </View>
                 <View style={styles.wtBtnRow}>
-                  <TouchableOpacity style={styles.wtGhost} onPress={dismissWalkthrough}>
+                  <TouchableOpacity style={styles.wtGhost} onPress={() => setWalkthroughStep(4)}>
                     <Text style={styles.wtGhostText}>Skip</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.wtPrimary} onPress={() => {
-                    dismissWalkthrough();
-                    setTimeout(() => router.push("/(tabs)/profile"), 300);
-                  }}>
-                    <Text style={styles.wtPrimaryText}>Go to Family →</Text>
+                  <TouchableOpacity style={styles.wtPrimary} onPress={() => setWalkthroughStep(4)}>
+                    <Text style={styles.wtPrimaryText}>Next →</Text>
                   </TouchableOpacity>
                 </View>
               </>}
+
               {walkthroughStep === 4 && (
                 <View>
                   <Text style={styles.wtEmoji}>🧠</Text>
@@ -452,6 +454,7 @@ export default function TodayScreen() {
                   <MentalLoadSelector user_id={USER_ID} onDone={dismissWalkthrough} />
                 </View>
               )}
+
             </View>
           </View>
         </Modal>

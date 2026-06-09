@@ -12,6 +12,7 @@ import * as DocumentPicker from "expo-document-picker";
 import { Swipeable, GestureHandlerRootView } from "react-native-gesture-handler";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "@/app/_layout";
+import MentalLoadSelector from "@/components/MentalLoadSelector";
 import { useRouter } from "expo-router";
 import { API_BASE_URL } from "@/constants/config";
 
@@ -377,7 +378,7 @@ export default function TodayScreen() {
             <View style={styles.walkthroughCard}>
               <View style={styles.walkthroughHandle} />
               <View style={styles.dotRow}>
-                {[0,1,2,3].map(i => <View key={i} style={[styles.dot, walkthroughStep === i && styles.dotActive]} />)}
+                {[0,1,2,3,4].map(i => <View key={i} style={[styles.dot, walkthroughStep === i && styles.dotActive]} />)}
               </View>
               {walkthroughStep === 0 && <>
                 <Text style={styles.wtEmoji}>🏠</Text>

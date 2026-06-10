@@ -14,7 +14,7 @@
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       },
-      "buildNumber": "20"
+      "buildNumber": "23"
     },
     "android": {
       "package": "com.hearth.familyos",

@@ -22,6 +22,8 @@ export default function ProfileScreen() {
   const [saving,       setSaving]       = useState(false);
   const [showCampModal,    setShowCampModal]    = useState(false);
   const [showCampSetup,    setShowCampSetup]    = useState(false);
+  const [showBillsSetup,   setShowBillsSetup]   = useState(false);
+  const [bills,            setBills]            = useState<any[]>([]);
   const [showMedicalSetup, setShowMedicalSetup] = useState(false);
   const [setupStatus,      setSetupStatus]      = useState<any>({});
   const [prefs,            setPrefs]            = useState<string[]>([]);
@@ -35,11 +37,20 @@ export default function ProfileScreen() {
     if (!user) return;
     loadKids();
     loadSetupStatus();
+    loadBills();
     fetch(`${API_BASE_URL}/connected-gmails?user_id=${user.user_id}`)
       .then(r => r.json())
       .then(d => setGmails(d.emails || [user.email]))
       .catch(() => setGmails([user?.email || ""]));
   }, [user]);
+
+  function loadBills() {
+    if (!user) return;
+    fetch(`${API_BASE_URL}/tasks?user_id=${user.user_id}`)
+      .then(r => r.json())
+      .then(data => setBills(Array.isArray(data) ? data.filter((t: any) => t.task_type === "bill") : []))
+      .catch(() => {});
+  }
 
   function loadSetupStatus() {
     if (!user) return;
@@ -213,15 +224,7 @@ export default function ProfileScreen() {
           <Text style={styles.scanBtnText}>{scanning ? "Scanning..." : "Scan Gmail + Google Calendar"}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={[styles.scanBtn, { backgroundColor: "#4A9E6B", marginTop: 10 }]}
-          onPress={() => {
-            setCampStep("intro");
-            setCampChildIndex(0);
-            setCampInput("");
-            setShowCampModal(true);
-          }}>
-          <Text style={styles.scanBtnText}>🏕️ Add Summer Camps</Text>
-        </TouchableOpacity>
+
 
         {prefs.length > 0 && (
           <View>
@@ -263,13 +266,16 @@ export default function ProfileScreen() {
               </TouchableOpacity>
             )}
             {prefs.includes("bills") && (
-              <View style={setupStyles.areaCard}>
+              <TouchableOpacity style={setupStyles.areaCard}
+                onPress={() => setShowBillsSetup(true)}>
                 <View style={{ flex: 1 }}>
                   <Text style={setupStyles.areaTitle}>💳 Bills & payments</Text>
-                  <Text style={setupStyles.areaSub}>Gmail scan active</Text>
+                  <Text style={setupStyles.areaSub}>
+                    {setupStatus.bills?.label || "Gmail scan active"}
+                  </Text>
                 </View>
-                <Text style={setupStyles.areaStatus}>✓</Text>
-              </View>
+                <Text style={setupStyles.areaBtn}>Setup →</Text>
+              </TouchableOpacity>
             )}
           </View>
         )}

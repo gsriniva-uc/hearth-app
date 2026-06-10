@@ -6,6 +6,8 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/app/_layout";
+import CampSetupModal from "@/components/CampSetupModal";
+import MedicalSetupModal from "@/components/MedicalSetupModal";
 import { API_BASE_URL } from "@/constants/config";
 
 export default function ProfileScreen() {
@@ -18,7 +20,11 @@ export default function ProfileScreen() {
   const [childName,    setChildName]    = useState("");
   const [childGrade,   setChildGrade]   = useState("");
   const [saving,       setSaving]       = useState(false);
-  const [showCampModal,  setShowCampModal]  = useState(false);
+  const [showCampModal,    setShowCampModal]    = useState(false);
+  const [showCampSetup,    setShowCampSetup]    = useState(false);
+  const [showMedicalSetup, setShowMedicalSetup] = useState(false);
+  const [setupStatus,      setSetupStatus]      = useState<any>({});
+  const [prefs,            setPrefs]            = useState<string[]>([]);
   const [campStep,       setCampStep]       = useState<"intro"|"collecting"|"done">("intro");
   const [campChildIndex, setCampChildIndex] = useState(0);
   const [campInput,      setCampInput]      = useState("");
@@ -28,11 +34,23 @@ export default function ProfileScreen() {
   useEffect(() => {
     if (!user) return;
     loadKids();
+    loadSetupStatus();
     fetch(`${API_BASE_URL}/connected-gmails?user_id=${user.user_id}`)
       .then(r => r.json())
       .then(d => setGmails(d.emails || [user.email]))
       .catch(() => setGmails([user?.email || ""]));
   }, [user]);
+
+  function loadSetupStatus() {
+    if (!user) return;
+    fetch(`${API_BASE_URL}/user/setup-status?user_id=${user.user_id}`)
+      .then(r => r.json())
+      .then(d => {
+        setSetupStatus(d.status || {});
+        setPrefs(d.areas || []);
+      })
+      .catch(() => {});
+  }
 
   function loadKids() {
     if (!user) return;
@@ -205,6 +223,57 @@ export default function ProfileScreen() {
           <Text style={styles.scanBtnText}>🏕️ Add Summer Camps</Text>
         </TouchableOpacity>
 
+        {prefs.length > 0 && (
+          <View>
+            <Text style={styles.section}>YOUR SETUP</Text>
+            {prefs.includes("camps") && (
+              <TouchableOpacity style={setupStyles.areaCard}
+                onPress={() => setShowCampSetup(true)}>
+                <View style={{ flex: 1 }}>
+                  <Text style={setupStyles.areaTitle}>🏕️ Camps & sign-ups</Text>
+                  <Text style={setupStyles.areaSub}>
+                    {setupStatus.camps?.label || "Not set up yet"}
+                  </Text>
+                </View>
+                <Text style={setupStyles.areaBtn}>Setup →</Text>
+              </TouchableOpacity>
+            )}
+            {prefs.includes("medical") && (
+              <TouchableOpacity style={setupStyles.areaCard}
+                onPress={() => setShowMedicalSetup(true)}>
+                <View style={{ flex: 1 }}>
+                  <Text style={setupStyles.areaTitle}>🏥 Medical & prescriptions</Text>
+                  <Text style={setupStyles.areaSub}>
+                    {setupStatus.medical?.label || "Not set up yet"}
+                  </Text>
+                </View>
+                <Text style={setupStyles.areaBtn}>Setup →</Text>
+              </TouchableOpacity>
+            )}
+            {prefs.includes("school") && (
+              <TouchableOpacity style={setupStyles.areaCard}
+                onPress={() => setShowAddChild(true)}>
+                <View style={{ flex: 1 }}>
+                  <Text style={setupStyles.areaTitle}>🏫 School & activities</Text>
+                  <Text style={setupStyles.areaSub}>
+                    {setupStatus.school?.label || "Not set up yet"}
+                  </Text>
+                </View>
+                <Text style={setupStyles.areaBtn}>Setup →</Text>
+              </TouchableOpacity>
+            )}
+            {prefs.includes("bills") && (
+              <View style={setupStyles.areaCard}>
+                <View style={{ flex: 1 }}>
+                  <Text style={setupStyles.areaTitle}>💳 Bills & payments</Text>
+                  <Text style={setupStyles.areaSub}>Gmail scan active</Text>
+                </View>
+                <Text style={setupStyles.areaStatus}>✓</Text>
+              </View>
+            )}
+          </View>
+        )}
+
         <Text style={styles.section}>CHILDREN</Text>
         {kids.length === 0
           ? <Text style={{ color: "#A0856B", fontStyle: "italic", marginBottom: 8 }}>No children added yet</Text>
@@ -374,6 +443,16 @@ const styles = StyleSheet.create({
                   fontSize: 15, color: "#5C4033", borderWidth: 1,
                   borderColor: "#F5E6D3", marginBottom: 12 },
   saveBtn:      { backgroundColor: "#E8734A", borderRadius: 12, padding: 16, alignItems: "center" },
+});
+
+const setupStyles = StyleSheet.create({
+  areaCard:  { flexDirection: "row", alignItems: "center", backgroundColor: "#fff",
+               borderRadius: 12, padding: 14, marginBottom: 8,
+               borderWidth: 1, borderColor: "#F5E6D3", elevation: 1 },
+  areaTitle: { fontSize: 14, fontWeight: "700", color: "#5C4033", marginBottom: 3 },
+  areaSub:   { fontSize: 12, color: "#A0856B" },
+  areaBtn:   { fontSize: 13, fontWeight: "700", color: "#E8734A" },
+  areaStatus:{ fontSize: 16, color: "#4A9E6B", fontWeight: "700" },
 });
 
 const campStyles = StyleSheet.create({

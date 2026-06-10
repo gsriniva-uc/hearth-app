@@ -1,7 +1,7 @@
 import { useState } from "react";
 import {
   View, Text, TouchableOpacity, StyleSheet,
-  TextInput, Modal, ActivityIndicator,
+  TextInput, Modal, ActivityIndicator, KeyboardAvoidingView, Platform,
 } from "react-native";
 import { API_BASE_URL } from "@/constants/config";
 
@@ -47,6 +47,7 @@ export default function MedicalSetupModal({
 
   return (
     <Modal visible={visible} transparent animationType="slide">
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
       <View style={s.overlay}>
         <View style={s.card}>
           <View style={s.handle} />
@@ -82,6 +83,7 @@ export default function MedicalSetupModal({
           </TouchableOpacity>
         </View>
       </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

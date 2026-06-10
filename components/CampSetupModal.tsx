@@ -1,7 +1,7 @@
 import { useState } from "react";
 import {
   View, Text, TouchableOpacity, StyleSheet,
-  TextInput, Modal, ActivityIndicator, ScrollView,
+  TextInput, Modal, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView,
 } from "react-native";
 import { API_BASE_URL } from "@/constants/config";
 
@@ -163,6 +163,7 @@ export default function CampSetupModal({
 
   return (
     <Modal visible={visible} transparent animationType="slide">
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
       <View style={s.overlay}>
         <View style={s.card}>
           <View style={s.handle} />
@@ -327,6 +328,7 @@ export default function CampSetupModal({
           </ScrollView>
         </View>
       </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

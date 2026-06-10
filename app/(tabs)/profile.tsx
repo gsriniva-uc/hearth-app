@@ -410,6 +410,23 @@ export default function ProfileScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
+
+      <CampSetupModal
+        user_id={user?.user_id || ""}
+        kids={kids}
+        visible={showCampSetup}
+        onClose={() => setShowCampSetup(false)}
+        onComplete={() => { loadSetupStatus(); setShowCampSetup(false); }}
+      />
+
+      <MedicalSetupModal
+        user_id={user?.user_id || ""}
+        kids={kids}
+        visible={showMedicalSetup}
+        onClose={() => setShowMedicalSetup(false)}
+        onComplete={() => { loadSetupStatus(); setShowMedicalSetup(false); }}
+      />
+
     </View>
   );
 }

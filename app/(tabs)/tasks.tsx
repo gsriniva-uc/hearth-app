@@ -71,6 +71,24 @@ export default function TasksScreen() {
     await load();
   }
 
+  async function handleCheckStatus(item: any) {
+    try {
+      await fetch(`${API_BASE_URL}/camps/${item.item_id}/check-status?user_id=${USER_ID}`, {
+        method: "POST",
+      });
+      await load();
+    } catch (e) { console.error(e); }
+  }
+
+  async function handleMarkDone(item: any) {
+    try {
+      await fetch(`${API_BASE_URL}/camps/${item.item_id}/dismiss-action?user_id=${USER_ID}`, {
+        method: "POST",
+      });
+      await load();
+    } catch (e) { console.error(e); }
+  }
+
   async function handleAction(item: any) {
     if (item.deep_link_url) {
       try { await Linking.openURL(item.deep_link_url); return; } catch {}
@@ -203,6 +221,20 @@ export default function TasksScreen() {
                               : item.action_label}
                           </Text>
                         </TouchableOpacity>
+                        {item.item_type === "camp"
+                          ? <>
+                              <TouchableOpacity
+                                style={s.checkStatusBtn}
+                                onPress={() => handleCheckStatus(item)}>
+                                <Text style={s.checkStatusText}>Check status</Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                style={s.markDoneBtn}
+                                onPress={() => handleMarkDone(item)}>
+                                <Text style={s.markDoneText}>✓ Mark done</Text>
+                              </TouchableOpacity>
+                            </>
+                          : null}
                       </View>
                     : null}
                 </View>
@@ -308,6 +340,12 @@ const s = StyleSheet.create({
   actionBtn:     { backgroundColor: "#E8734A", borderRadius: 8,
                    paddingVertical: 6, paddingHorizontal: 14 },
   actionBtnApp:  { backgroundColor: "#4A7BE8" },
+  checkStatusBtn:{ borderWidth: 1, borderColor: "#A0856B", borderRadius: 8,
+                   paddingVertical: 6, paddingHorizontal: 10 },
+  checkStatusText:{ color: "#A0856B", fontWeight: "600", fontSize: 12 },
+  markDoneBtn:   { borderWidth: 1, borderColor: "#4A9E6B", borderRadius: 8,
+                   paddingVertical: 6, paddingHorizontal: 10 },
+  markDoneText:  { color: "#4A9E6B", fontWeight: "600", fontSize: 12 },
   actionBtnText: { color: "#fff", fontWeight: "700", fontSize: 12 },
   allClear:      { alignItems: "center", paddingVertical: 60 },
   allClearIcon:  { fontSize: 48, color: "#4A9E6B", marginBottom: 8 },

@@ -82,9 +82,18 @@ export default function TasksScreen() {
 
   async function handleMarkDone(item: any) {
     try {
-      await fetch(`${API_BASE_URL}/camps/${item.item_id}/dismiss-action?user_id=${USER_ID}`, {
-        method: "POST",
-      });
+      if (item.item_type === "camp") {
+        await fetch(`${API_BASE_URL}/camps/${item.item_id}/dismiss-action?user_id=${USER_ID}`, {
+          method: "POST",
+        });
+        await fetch(`${API_BASE_URL}/camps/${item.item_id}/check-status?user_id=${USER_ID}`, {
+          method: "POST",
+        });
+      } else {
+        await fetch(`${API_BASE_URL}/tasks/${item.item_id}/done?user_id=${USER_ID}`, {
+          method: "POST",
+        });
+      }
       await load();
     } catch (e) { console.error(e); }
   }
@@ -222,19 +231,17 @@ export default function TasksScreen() {
                           </Text>
                         </TouchableOpacity>
                         {item.item_type === "camp"
-                          ? <>
-                              <TouchableOpacity
-                                style={s.checkStatusBtn}
-                                onPress={() => handleCheckStatus(item)}>
-                                <Text style={s.checkStatusText}>Check status</Text>
-                              </TouchableOpacity>
-                              <TouchableOpacity
-                                style={s.markDoneBtn}
-                                onPress={() => handleMarkDone(item)}>
-                                <Text style={s.markDoneText}>✓ Mark done</Text>
-                              </TouchableOpacity>
-                            </>
+                          ? <TouchableOpacity
+                              style={s.checkStatusBtn}
+                              onPress={() => handleCheckStatus(item)}>
+                              <Text style={s.checkStatusText}>Check status</Text>
+                            </TouchableOpacity>
                           : null}
+                        <TouchableOpacity
+                          style={s.markDoneBtn}
+                          onPress={() => handleMarkDone(item)}>
+                          <Text style={s.markDoneText}>✓ Mark done</Text>
+                        </TouchableOpacity>
                       </View>
                     : null}
                 </View>
@@ -336,7 +343,7 @@ const s = StyleSheet.create({
   urgencyIcon:   { fontSize: 18, marginTop: 1 },
   cardTitle:     { fontSize: 14, fontWeight: "700", color: "#5C4033", marginBottom: 3 },
   cardSub:       { fontSize: 12, color: "#A0856B", marginBottom: 8, lineHeight: 16 },
-  btnRow:        { flexDirection: "row", gap: 8 },
+  btnRow:        { flexDirection: "row", gap: 8, flexWrap: "wrap" },
   actionBtn:     { backgroundColor: "#E8734A", borderRadius: 8,
                    paddingVertical: 6, paddingHorizontal: 14 },
   actionBtnApp:  { backgroundColor: "#4A7BE8" },

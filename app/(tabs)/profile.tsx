@@ -19,6 +19,8 @@ export default function ProfileScreen() {
   const [showAddChild, setShowAddChild] = useState(false);
   const [childName,    setChildName]    = useState("");
   const [childGrade,   setChildGrade]   = useState("");
+  const [childSchool,  setChildSchool]  = useState("");
+  const [editingChild, setEditingChild] = useState<any>(null);
   const [saving,       setSaving]       = useState(false);
   const [showCampModal,    setShowCampModal]    = useState(false);
   const [showCampSetup,    setShowCampSetup]    = useState(false);
@@ -82,10 +84,13 @@ export default function ProfileScreen() {
           user_id: user?.user_id,
           name:    childName.trim(),
           grade:   childGrade.trim() || null,
+          school:  childSchool.trim() || null,
         }),
       });
       setChildName("");
       setChildGrade("");
+      setChildSchool("");
+      setEditingChild(null);
       setShowAddChild(false);
       loadKids();
     } catch {
@@ -123,10 +128,9 @@ export default function ProfileScreen() {
       const [gmailRes, gcalRes] = await Promise.all([
         fetch(`${API_BASE_URL}/gmail/scan-all?user_id=${user.user_id}`, { method: "POST" }),
         fetch(`${API_BASE_URL}/gcal/sync?user_id=${user.user_id}`, { method: "POST" }),
+        fetch(`${API_BASE_URL}/tasks/scan?user_id=${user.user_id}`, { method: "POST" }),
       ]);
       const gmail = await gmailRes.json();
-      const gcal  = await gcalRes.json();
-      const total = (gmail.new || 0) + (gcal.new || 0);
       const expiredAccounts = (gmail.errors || []).filter((e: any) => e.error === "token_expired");
       if (expiredAccounts.length > 0) {
         Alert.alert(
@@ -138,7 +142,23 @@ export default function ProfileScreen() {
           ]
         );
       } else {
-        Alert.alert("Sync complete", `Found ${total} new event(s) from Gmail and Google Calendar.`);
+        try {
+          const briefRes = await fetch(`${API_BASE_URL}/actions/briefing`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ user_id: user.user_id }),
+          });
+          const brief = await briefRes.json();
+          const count = (brief.items || []).length;
+          Alert.alert(
+            "Scan complete",
+            count > 0
+              ? `Found ${count} item(s) needing your attention \u2014 check the Actions tab.`
+              : "All caught up \u2014 nothing needs your attention right now."
+          );
+        } catch {
+          Alert.alert("Scan complete", "Check the Actions tab for anything new.");
+        }
       }
     } catch {
       Alert.alert("Error", "Scan failed.");
@@ -285,17 +305,31 @@ export default function ProfileScreen() {
           ? <Text style={{ color: "#A0856B", fontStyle: "italic", marginBottom: 8 }}>No children added yet</Text>
           : kids.map((k: any) => (
             <View key={k.id} style={styles.childCard}>
-              <View style={{ flex: 1 }}>
+              <TouchableOpacity style={{ flex: 1 }}
+                onPress={() => {
+                  setEditingChild(k);
+                  setChildName(k.name || "");
+                  setChildGrade(k.grade || "");
+                  setChildSchool(k.school || "");
+                  setShowAddChild(true);
+                }}>
                 <Text style={styles.childName}>{k.name}</Text>
                 {k.grade ? <Text style={{ fontSize: 13, color: "#A0856B" }}>Grade {k.grade}</Text> : null}
-              </View>
+                {k.school
+                  ? <Text style={{ fontSize: 12, color: "#C0A090" }}>{k.school}</Text>
+                  : <Text style={{ fontSize: 12, color: "#E8734A" }}>Tap to add school name</Text>}
+              </TouchableOpacity>
               <TouchableOpacity onPress={() => handleDeleteChild(k.id)}>
                 <Ionicons name="trash-outline" size={18} color="#C0A090" />
               </TouchableOpacity>
             </View>
           ))
         }
-        <TouchableOpacity style={styles.addBtn} onPress={() => setShowAddChild(true)}>
+        <TouchableOpacity style={styles.addBtn} onPress={() => {
+            setEditingChild(null);
+            setChildName(""); setChildGrade(""); setChildSchool("");
+            setShowAddChild(true);
+          }}>
           <Ionicons name="add-circle-outline" size={20} color="#E8734A" />
           <Text style={styles.addBtnText}>Add a child</Text>
         </TouchableOpacity>
@@ -316,17 +350,23 @@ export default function ProfileScreen() {
       <Modal visible={showAddChild} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalBox}>
-            <Text style={styles.modalTitle}>Add a Child</Text>
+            <Text style={styles.modalTitle}>{editingChild ? `Edit ${editingChild.name}` : "Add a Child"}</Text>
             <TextInput style={styles.input} placeholder="Child's name"
               placeholderTextColor="#A0856B" value={childName} onChangeText={setChildName} />
             <TextInput style={styles.input} placeholder="Grade (optional)"
               placeholderTextColor="#A0856B" value={childGrade} onChangeText={setChildGrade} />
+            <TextInput style={styles.input} placeholder="School name (helps Hearth find school emails)"
+              placeholderTextColor="#A0856B" value={childSchool} onChangeText={setChildSchool} />
             <TouchableOpacity style={styles.saveBtn} onPress={handleAddChild} disabled={saving}>
               <Text style={{ color: "#fff", fontWeight: "700", fontSize: 16 }}>
                 {saving ? "Saving..." : "Save"}
               </Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => setShowAddChild(false)} style={{ alignItems: "center", marginTop: 12 }}>
+            <TouchableOpacity onPress={() => {
+                setShowAddChild(false);
+                setEditingChild(null);
+                setChildName(""); setChildGrade(""); setChildSchool("");
+              }} style={{ alignItems: "center", marginTop: 12 }}>
               <Text style={{ color: "#A0856B" }}>Cancel</Text>
             </TouchableOpacity>
           </View>

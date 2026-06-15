@@ -71,6 +71,26 @@ export default function TasksScreen() {
     await load();
   }
 
+  async function handleFeedback(item: any, thumbs: "up" | "down") {
+    try {
+      await fetch(`${API_BASE_URL}/feedback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: USER_ID,
+          item_type: item.item_type,
+          item_id: item.item_id,
+          title: item.title,
+          contact_name: item.contact_name || null,
+          thumbs,
+        }),
+      });
+      if (thumbs === "down") {
+        await load();
+      }
+    } catch (e) { console.error(e); }
+  }
+
   async function handleCheckStatus(item: any) {
     try {
       await fetch(`${API_BASE_URL}/camps/${item.item_id}/check-status?user_id=${USER_ID}`, {
@@ -242,6 +262,16 @@ export default function TasksScreen() {
                           onPress={() => handleMarkDone(item)}>
                           <Text style={s.markDoneText}>✓ Mark done</Text>
                         </TouchableOpacity>
+                        <TouchableOpacity
+                          style={s.thumbBtn}
+                          onPress={() => handleFeedback(item, "up")}>
+                          <Text style={s.thumbText}>👍</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={s.thumbBtn}
+                          onPress={() => handleFeedback(item, "down")}>
+                          <Text style={s.thumbText}>👎</Text>
+                        </TouchableOpacity>
                       </View>
                     : null}
                 </View>
@@ -353,6 +383,9 @@ const s = StyleSheet.create({
   markDoneBtn:   { borderWidth: 1, borderColor: "#4A9E6B", borderRadius: 8,
                    paddingVertical: 6, paddingHorizontal: 10 },
   markDoneText:  { color: "#4A9E6B", fontWeight: "600", fontSize: 12 },
+  thumbBtn:      { borderWidth: 1, borderColor: "#E8E8E8", borderRadius: 8,
+                   paddingVertical: 6, paddingHorizontal: 10 },
+  thumbText:     { fontSize: 14 },
   actionBtnText: { color: "#fff", fontWeight: "700", fontSize: 12 },
   allClear:      { alignItems: "center", paddingVertical: 60 },
   allClearIcon:  { fontSize: 48, color: "#4A9E6B", marginBottom: 8 },

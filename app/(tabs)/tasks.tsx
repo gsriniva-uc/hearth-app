@@ -71,6 +71,36 @@ export default function TasksScreen() {
     await load();
   }
 
+  const [showMissedModal, setShowMissedModal] = useState(false);
+  const [missedTitle,      setMissedTitle]      = useState("");
+  const [missedType,       setMissedType]       = useState<"school_task"|"bill"|"event">("school_task");
+  const [missedDueDate,    setMissedDueDate]    = useState("");
+  const [missedNotes,      setMissedNotes]      = useState("");
+  const [missedSaving,     setMissedSaving]     = useState(false);
+
+  async function handleSubmitMissed() {
+    if (!missedTitle.trim()) return;
+    setMissedSaving(true);
+    try {
+      await fetch(`${API_BASE_URL}/feedback/missed`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: USER_ID,
+          item_type: missedType,
+          title: missedTitle.trim(),
+          due_date: missedDueDate.trim() || null,
+          notes: missedNotes.trim() || null,
+        }),
+      });
+      setMissedTitle(""); setMissedDueDate(""); setMissedNotes("");
+      setMissedType("school_task");
+      setShowMissedModal(false);
+      await load();
+    } catch (e) { console.error(e); }
+    finally { setMissedSaving(false); }
+  }
+
   async function handleFeedback(item: any, thumbs: "up" | "down") {
     try {
       await fetch(`${API_BASE_URL}/feedback`, {
@@ -289,6 +319,11 @@ export default function TasksScreen() {
               </TouchableOpacity>
             </View>
           : null}
+        <TouchableOpacity style={s.addMissedBtn} onPress={() => setShowMissedModal(true)}>
+          <Ionicons name="add-circle-outline" size={18} color="#A0856B" />
+          <Text style={s.addMissedText}>Add something Hearth missed</Text>
+        </TouchableOpacity>
+
         {isRecording
           ? <View style={s.recordingBar}>
               <Text style={s.recordingText}>🎙️ Recording... tap mic to stop</Text>
@@ -324,6 +359,55 @@ export default function TasksScreen() {
         </View>
 
       </ScrollView>
+
+      <Modal visible={showMissedModal} transparent animationType="slide">
+        <View style={s.modalOverlay}>
+          <View style={s.modalBox}>
+            <Text style={s.modalTitle}>Add something Hearth missed</Text>
+
+            <TextInput style={s.modalInput}
+              placeholder="What needs to happen? e.g. Submit science fair registration"
+              placeholderTextColor="#A0856B"
+              value={missedTitle} onChangeText={setMissedTitle} multiline />
+
+            <View style={{ flexDirection: "row", gap: 8, marginBottom: 12 }}>
+              {(["school_task","bill","event"] as const).map(t => (
+                <TouchableOpacity key={t}
+                  style={[s.typeChip, missedType === t && s.typeChipActive]}
+                  onPress={() => setMissedType(t)}>
+                  <Text style={[s.typeChipText, missedType === t && s.typeChipTextActive]}>
+                    {t === "school_task" ? "School task" : t === "bill" ? "Bill" : "Event"}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <TextInput style={s.modalInput}
+              placeholder="Due date (YYYY-MM-DD, optional)"
+              placeholderTextColor="#A0856B"
+              value={missedDueDate} onChangeText={setMissedDueDate} />
+
+            <TextInput style={[s.modalInput, { minHeight: 60 }]}
+              placeholder="What was this about? (e.g. email from Lincoln Elementary)"
+              placeholderTextColor="#A0856B"
+              value={missedNotes} onChangeText={setMissedNotes} multiline />
+
+            <TouchableOpacity style={s.saveBtn}
+              onPress={handleSubmitMissed} disabled={missedSaving || !missedTitle.trim()}>
+              {missedSaving
+                ? <ActivityIndicator color="#fff" />
+                : <Text style={{ color: "#fff", fontWeight: "700", fontSize: 16 }}>Add</Text>}
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => {
+                setShowMissedModal(false);
+                setMissedTitle(""); setMissedDueDate(""); setMissedNotes("");
+                setMissedType("school_task");
+              }} style={{ alignItems: "center", marginTop: 12 }}>
+              <Text style={{ color: "#A0856B" }}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       <Modal visible={showEdit} transparent animationType="slide">
         <View style={s.modalOverlay}>
@@ -415,4 +499,13 @@ const s = StyleSheet.create({
                    color: "#5C4033", borderWidth: 1, borderColor: "#F5E6D3",
                    minHeight: 120, textAlignVertical: "top", marginBottom: 16 },
   saveBtn:       { backgroundColor: "#E8734A", borderRadius: 12, padding: 16, alignItems: "center" },
+  addMissedBtn:  { flexDirection: "row", alignItems: "center", gap: 8,
+                   borderWidth: 1.5, borderColor: "#E8E8E8", borderStyle: "dashed",
+                   borderRadius: 12, padding: 14, justifyContent: "center", marginTop: 8 },
+  addMissedText: { color: "#A0856B", fontWeight: "600", fontSize: 14 },
+  typeChip:      { flex: 1, borderWidth: 1, borderColor: "#E8E8E8", borderRadius: 10,
+                   paddingVertical: 8, alignItems: "center" },
+  typeChipActive:{ borderColor: "#E8734A", backgroundColor: "#FFF0E8" },
+  typeChipText:  { fontSize: 12, color: "#5C4033", fontWeight: "600" },
+  typeChipTextActive: { color: "#E8734A" },
 });

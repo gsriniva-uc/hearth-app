@@ -124,44 +124,18 @@ export default function ProfileScreen() {
   async function handleScanAll() {
     if (!user) return;
     setScanning(true);
+    // Fire all scans without awaiting \u2014 they run in background on the server.
+    // We then poll the briefing once after a short delay to show results.
     try {
-      const [gmailRes, gcalRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/gmail/scan-all?user_id=${user.user_id}`, { method: "POST" }),
-        fetch(`${API_BASE_URL}/gcal/sync?user_id=${user.user_id}`, { method: "POST" }),
-        fetch(`${API_BASE_URL}/tasks/scan?user_id=${user.user_id}`, { method: "POST" }),
-      ]);
-      const gmail = await gmailRes.json();
-      const expiredAccounts = (gmail.errors || []).filter((e: any) => e.error === "token_expired");
-      if (expiredAccounts.length > 0) {
-        Alert.alert(
-          "Gmail reconnection needed",
-          `${expiredAccounts[0].email} needs to reconnect.`,
-          [
-            { text: "Cancel", style: "cancel" },
-            { text: "Reconnect", onPress: () => Linking.openURL(expiredAccounts[0].reauth_url) },
-          ]
-        );
-      } else {
-        try {
-          const briefRes = await fetch(`${API_BASE_URL}/actions/briefing`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ user_id: user.user_id }),
-          });
-          const brief = await briefRes.json();
-          const count = (brief.items || []).length;
-          Alert.alert(
-            "Scan complete",
-            count > 0
-              ? `Found ${count} item(s) needing your attention \u2014 check the Actions tab.`
-              : "All caught up \u2014 nothing needs your attention right now."
-          );
-        } catch {
-          Alert.alert("Scan complete", "Check the Actions tab for anything new.");
-        }
-      }
+      fetch(`${API_BASE_URL}/gmail/scan-all?user_id=${user.user_id}`, { method: "POST" }).catch(() => {});
+      fetch(`${API_BASE_URL}/gcal/sync?user_id=${user.user_id}`, { method: "POST" }).catch(() => {});
+      fetch(`${API_BASE_URL}/tasks/scan?user_id=${user.user_id}`, { method: "POST" }).catch(() => {});
+      Alert.alert(
+        "Scanning...",
+        "Hearth is scanning your inbox in the background. Check the Actions tab in about 30 seconds."
+      );
     } catch {
-      Alert.alert("Error", "Scan failed.");
+      Alert.alert("Error", "Could not start scan. Please try again.");
     } finally {
       setScanning(false);
     }

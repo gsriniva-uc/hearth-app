@@ -153,8 +153,7 @@ export default function TasksScreen() {
       try { await Linking.openURL(item.deep_link_url); return; } catch {}
     }
     if (item.action_url) {
-      await Linking.openURL(item.action_url);
-      return;
+      try { await Linking.openURL(item.action_url); return; } catch {}
     }
     if (item.action_label === "Draft Email") {
       const res  = await fetch(`${API_BASE_URL}/tasks?user_id=${USER_ID}`);
@@ -163,7 +162,11 @@ export default function TasksScreen() {
         ? tasks.find((t: any) => t.id === item.item_id)
         : null;
       if (task) { setEditTask(task); setEditBody(task.draft_body || ""); setShowEdit(true); }
+      return;
     }
+    // No URL available — show the source context so the user knows where to look
+    const detail = item.subtitle || "No additional details available.";
+    Alert.alert(item.title, detail + "\n\nTip: search your inbox for this item to find the original email.");
   }
 
   async function handleMic() {
